@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { User } from "../types";
 import StudentExamScreen from "./StudentExamScreen";
 import StudentReviewScreen from "./StudentReviewScreen";
+import Footer from "./Footer";
 import { 
   Award, Play, Eye, LogOut, BookOpen, Clock, Calendar, 
   HelpCircle, RefreshCw, AlertCircle, Smile, GraduationCap 
@@ -428,6 +429,8 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
             </div>
           </div>
         )}
+
+        <Footer className="mt-12 pt-6 border-t border-slate-200/60" />
       </main>
     </div>
   );

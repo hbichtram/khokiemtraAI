@@ -322,19 +322,18 @@ function updateAssignmentStatuses() {
   }
 }
 
-// Initialize Gemini Client
-let ai: GoogleGenAI | null = null;
-if (process.env.GEMINI_API_KEY) {
-  ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
+// Initialize Gemini Client helper
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return null;
+  return new GoogleGenAI({
+    apiKey,
     httpOptions: {
       headers: {
         "User-Agent": "aistudio-build",
       },
     },
   });
-} else {
-  console.warn("WARNING: GEMINI_API_KEY environment variable is not defined!");
 }
 
 // ==========================================
@@ -762,13 +761,18 @@ app.delete("/api/exams/:id", (req, res) => {
 // AI EXAM GENERATOR (GEMINI)
 // ==========================================
 
-// Retry wrapper to handle transient Gemini API errors (like 503, 429)
+// Retry wrapper to handle transient Gemini API errors (like 503, 429, 404)
 async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayMs = 1000) {
   let attempt = 0;
   const originalModel = options.model;
+  const aiClient = getGeminiClient();
+  if (!aiClient) {
+    throw new Error("Chưa cấu hình GEMINI_API_KEY.");
+  }
+
   while (attempt < maxRetries) {
     try {
-      return await ai.models.generateContent(options);
+      return await aiClient.models.generateContent(options);
     } catch (error: any) {
       attempt++;
       const errStr = String(error.message || error).toUpperCase();
@@ -777,21 +781,22 @@ async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayM
 
       const is503 = errCode === 503 || errStatus === "UNAVAILABLE" || errStr.includes("503") || errStr.includes("UNAVAILABLE");
       const is429 = errCode === 429 || errStatus === "RESOURCE_EXHAUSTED" || errStr.includes("429") || errStr.includes("RESOURCE_EXHAUSTED");
+      const isNotFound = errCode === 404 || errStr.includes("404") || errStr.includes("NOT_FOUND") || errStr.includes("NOT FOUND");
 
-      const isTransient = is503 || is429;
+      const isTransient = is503 || is429 || isNotFound;
 
       if (attempt >= maxRetries || !isTransient) {
         options.model = originalModel;
         throw error;
       }
 
-      // Automatically fallback to older/stable models on transient load errors
-      if (options.model === "gemini-3.5-flash") {
+      // Automatically fallback to alternative models on transient or model name errors
+      if (options.model === "gemini-3.6-flash") {
         options.model = "gemini-flash-latest";
-        console.warn(`Gemini 3.5-flash failed with transient error. Falling back to gemini-flash-latest...`);
+        console.warn(`Gemini 3.6-flash failed (${errStr}). Falling back to gemini-flash-latest...`);
       } else if (options.model === "gemini-flash-latest") {
         options.model = "gemini-3.1-flash-lite";
-        console.warn(`Gemini-flash-latest failed with transient error. Falling back to gemini-3.1-flash-lite...`);
+        console.warn(`Gemini-flash-latest failed (${errStr}). Falling back to gemini-3.1-flash-lite...`);
       }
 
       const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
@@ -810,8 +815,9 @@ app.post("/api/exams/generate", async (req, res) => {
     return res.status(400).json({ error: "Vui lòng nhập đầy đủ khối lớp, chủ đề và số câu hỏi." });
   }
 
-  if (!ai) {
-    return res.status(500).json({ error: "Hệ thống AI chưa được kích hoạt khóa API. Vui lòng cấu hình khóa." });
+  const aiClient = getGeminiClient();
+  if (!aiClient) {
+    return res.status(500).json({ error: "Hệ thống AI chưa được kích hoạt khóa API. Vui lòng kiểm tra khóa GEMINI_API_KEY trong cài đặt." });
   }
 
   const qty = Number(quantity) || 5;
@@ -844,7 +850,7 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
 
   try {
     const response = await generateContentWithRetry({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -905,7 +911,8 @@ app.post("/api/exams/generate-single-question", async (req, res) => {
     return res.status(400).json({ error: "Thiếu thông tin khối lớp hoặc chủ đề." });
   }
 
-  if (!ai) {
+  const aiClient = getGeminiClient();
+  if (!aiClient) {
     return res.status(500).json({ error: "Khóa API chưa được cấu hình." });
   }
 
@@ -928,7 +935,7 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
 
   try {
     const response = await generateContentWithRetry({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Footer from "./Footer";
 import { 
   Award, RefreshCw, AlertCircle, ArrowLeft, Check, 
   HelpCircle, Lightbulb, BookOpen, MessageSquare 
@@ -334,6 +335,8 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
           Quay lại trang chính học tập
         </button>
       </div>
+
+      <Footer className="mt-8 pt-6 border-t border-slate-200/60" />
     </div>
   );
 }

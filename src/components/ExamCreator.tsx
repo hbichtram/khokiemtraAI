@@ -42,6 +42,7 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
       let aiQuestions: Question[] = [];
       let aiTitle = "";
       let generated = false;
+      let apiError = "";
 
       try {
         const res = await fetch("/api/exams/generate", {
@@ -50,18 +51,28 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
           body: JSON.stringify({ grade, topic, content, quantity })
         });
 
-        const contentType = res.headers.get("content-type");
-        if (res.ok && contentType && contentType.includes("application/json")) {
-          const data = await res.json();
+        const data = await res.json().catch(() => null);
+
+        if (res.ok && data && Array.isArray(data.questions) && data.questions.length > 0) {
           aiTitle = data.title || `Đề kiểm tra Tin học ${grade}: ${topic}`;
-          aiQuestions = data.questions || [];
+          aiQuestions = data.questions;
           generated = true;
+        } else if (data && data.error) {
+          apiError = data.error;
+        } else {
+          apiError = "Không thể tạo câu hỏi qua AI. Vui lòng kiểm tra lại.";
         }
-      } catch (err) {
-        console.warn("API AI generate failed, generating template questions locally:", err);
+      } catch (err: any) {
+        console.warn("API AI generate network request failed:", err);
+        apiError = err.message || "Lỗi kết nối máy chủ AI.";
       }
 
-      if (!generated || aiQuestions.length === 0) {
+      if (!generated) {
+        if (apiError) {
+          setError(apiError);
+          return;
+        }
+        // Fallback template
         aiTitle = `Đề kiểm tra Tin học ${grade}: ${topic}`;
         const count = Number(quantity) || 5;
         aiQuestions = Array.from({ length: count }, (_, idx) => ({
@@ -83,7 +94,7 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
       setTitle(aiTitle);
       setQuestions(aiQuestions);
       setIsGenerated(true);
-      setSuccess("Đã khởi tạo câu hỏi kiểm tra thành công! Hãy kiểm tra và tùy chỉnh nội dung bên dưới.");
+      setSuccess("Đã tạo đề kiểm tra bằng AI thành công! Hãy kiểm tra và tùy chỉnh nội dung bên dưới.");
     } catch (err: any) {
       setError(err.message || "Đã xảy ra lỗi khi tạo đề.");
     } finally {
@@ -163,6 +174,7 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
     setError(null);
     try {
       let newQ: Question | null = null;
+      let apiError = "";
       try {
         const res = await fetch("/api/exams/generate-single-question", {
           method: "POST",
@@ -170,15 +182,26 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
           body: JSON.stringify({ grade, topic, currentQuestionText: currentText })
         });
 
-        const contentType = res.headers.get("content-type");
-        if (res.ok && contentType && contentType.includes("application/json")) {
-          newQ = await res.json();
+        const data = await res.json().catch(() => null);
+
+        if (res.ok && data && data.question) {
+          newQ = {
+            ...data,
+            id: id
+          };
+        } else if (data && data.error) {
+          apiError = data.error;
         }
-      } catch (err) {
-        console.warn("API single question regenerate failed, generating locally:", err);
+      } catch (err: any) {
+        console.warn("API single question regenerate failed:", err);
+        apiError = err.message || "Lỗi kết nối khi đổi câu hỏi.";
       }
 
       if (!newQ) {
+        if (apiError) {
+          setError(apiError);
+          return;
+        }
         newQ = {
           id,
           question: `[Mới] Câu hỏi củng cố chủ đề ${topic} dành cho ${grade}: Em hãy chọn phương án chính xác nhất?`,
@@ -198,7 +221,7 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
       setQuestions(
         questions.map((q) => (q.id === id ? { ...newQ!, id } : q))
       );
-      setSuccess("Đã đổi câu hỏi mới!");
+      setSuccess("Đã đổi câu hỏi mới qua AI thành công!");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
       setError(err.message || "Đã xảy ra lỗi khi tạo lại câu hỏi.");

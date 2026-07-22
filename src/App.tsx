@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { User } from "./types";
 import TeacherDashboard from "./components/TeacherDashboard";
 import StudentDashboard from "./components/StudentDashboard";
+import Footer from "./components/Footer";
 import { 
   Sparkles, GraduationCap, Users, Mail, Key, 
   ArrowRight, AlertCircle, RefreshCw, Smile 
@@ -498,9 +499,7 @@ export default function App() {
         )}
       </div>
 
-      <footer className="text-center mt-8 text-slate-400 text-[10px] font-semibold uppercase tracking-widest">
-        © 2026 AI SMART TEST • Hỗ trợ học tập thông minh
-      </footer>
+      <Footer className="mt-8" />
     </div>
   );
 }

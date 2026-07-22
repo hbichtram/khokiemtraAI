@@ -5,6 +5,7 @@ import ExamCreator from "./ExamCreator";
 import ExamBank from "./ExamBank";
 import TeacherReportScreen from "./TeacherReportScreen";
 import TeacherSettingsModal from "./TeacherSettingsModal";
+import Footer from "./Footer";
 import { 
   BarChart, Users, BookOpen, Clock, Activity, LogOut, 
   Sparkles, Layers, BarChart2, Plus, ArrowRight, CheckCircle2, RefreshCw,
@@ -487,6 +488,8 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
         {activeTab === "ai-create" && <ExamCreator onExamSaved={() => setActiveTab("exams")} />}
         {activeTab === "exams" && <ExamBank onAssignCreated={() => setActiveTab("reports")} />}
         {activeTab === "reports" && <TeacherReportScreen teacherId={user.id} />}
+
+        <Footer className="mt-12 pt-6 border-t border-slate-200/60" />
       </main>
 
       {/* TEACHER ACCOUNT SETTINGS MODAL */}
