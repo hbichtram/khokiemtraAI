@@ -11,6 +11,8 @@ import {
   User as UserIcon, Lock, Settings, ChevronDown, UserCheck
 } from "lucide-react";
 
+import { fsGetTeacherOverview } from "../lib/firestoreData";
+
 interface TeacherDashboardProps {
   user: User;
   onLogout: () => void;
@@ -42,13 +44,28 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
   const fetchOverviewData = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/teacher/overview");
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data.stats);
-        setRecentExams(data.recentExams);
-        setActiveAssignments(data.activeAssignments);
-        setRecentSubmissions(data.recentSubmissions);
+      let dataLoaded = false;
+      try {
+        const res = await fetch("/api/teacher/overview");
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          setStats(data.stats);
+          setRecentExams(data.recentExams);
+          setActiveAssignments(data.activeAssignments);
+          setRecentSubmissions(data.recentSubmissions);
+          dataLoaded = true;
+        }
+      } catch (err) {
+        console.warn("API overview fetch failed, falling back to Firestore:", err);
+      }
+
+      if (!dataLoaded) {
+        const fsData = await fsGetTeacherOverview();
+        setStats(fsData.stats);
+        setRecentExams(fsData.recentExams);
+        setActiveAssignments(fsData.activeAssignments);
+        setRecentSubmissions(fsData.recentSubmissions);
       }
     } catch (e) {
       console.error("Error fetching teacher overview statistics:", e);

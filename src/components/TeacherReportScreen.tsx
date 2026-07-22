@@ -3,6 +3,12 @@ import {
   Award, ArrowLeft, BarChart2, CheckCircle2, XCircle, 
   Clock, Eye, User, Calendar, RefreshCw, AlertCircle 
 } from "lucide-react";
+import {
+  fsGetAssignmentsDetailed,
+  fsGetAssignmentReport,
+  fsDeleteAssignment,
+  getAppData
+} from "../lib/firestoreData";
 
 interface TeacherReportScreenProps {
   teacherId: string;
@@ -29,9 +35,24 @@ export default function TeacherReportScreen({ teacherId }: TeacherReportScreenPr
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/assignments/detailed?teacherId=${teacherId}`);
-      if (!res.ok) throw new Error("Không thể tải danh sách bài kiểm tra đã giao.");
-      const data = await res.json();
+      let data: any[] = [];
+      let loaded = false;
+
+      try {
+        const res = await fetch(`/api/assignments/detailed?teacherId=${teacherId}`);
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          data = await res.json();
+          loaded = true;
+        }
+      } catch (err) {
+        console.warn("API detailed assignments fetch failed, using Firestore:", err);
+      }
+
+      if (!loaded) {
+        data = await fsGetAssignmentsDetailed(teacherId);
+      }
+
       setAssignments(data);
     } catch (err: any) {
       setError(err.message || "Lỗi khi tải dữ liệu.");
@@ -47,12 +68,24 @@ export default function TeacherReportScreen({ teacherId }: TeacherReportScreenPr
     setDetailLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reports/assignment/${id}`);
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Không thể tải báo cáo lớp học.");
+      let data: any = null;
+      let loaded = false;
+
+      try {
+        const res = await fetch(`/api/reports/assignment/${id}`);
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          data = await res.json();
+          loaded = true;
+        }
+      } catch (err) {
+        console.warn("API assignment report fetch failed, using Firestore:", err);
       }
-      const data = await res.json();
+
+      if (!loaded) {
+        data = await fsGetAssignmentReport(id);
+      }
+
       setReportData(data);
     } catch (err: any) {
       setError(err.message || "Lỗi khi tải báo cáo.");
@@ -65,9 +98,32 @@ export default function TeacherReportScreen({ teacherId }: TeacherReportScreenPr
     setSubLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/student/result/${submissionId}`);
-      if (!res.ok) throw new Error("Không thể tải chi tiết bài thi của học sinh.");
-      const data = await res.json();
+      let data: any = null;
+      let loaded = false;
+
+      try {
+        const res = await fetch(`/api/student/result/${submissionId}`);
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          data = await res.json();
+          loaded = true;
+        }
+      } catch (err) {
+        console.warn("API student submission detail fetch failed, using Firestore:", err);
+      }
+
+      if (!loaded) {
+        const appData = await getAppData();
+        const sub = appData.submissions.find((s) => s.id === submissionId);
+        if (sub) {
+          const exam = appData.exams.find((e) => e.id === sub.examId);
+          data = {
+            submission: sub,
+            exam: exam || null
+          };
+        }
+      }
+
       setStudentSubmissionDetail(data);
     } catch (err: any) {
       setError(err.message || "Lỗi khi tải chi tiết bài làm.");
@@ -82,8 +138,18 @@ export default function TeacherReportScreen({ teacherId }: TeacherReportScreenPr
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/assignments/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Lỗi khi hủy giao bài.");
+      let deleted = false;
+      try {
+        const res = await fetch(`/api/assignments/${id}`, { method: "DELETE" });
+        if (res.ok) deleted = true;
+      } catch (err) {
+        console.warn("API delete assignment failed, using Firestore:", err);
+      }
+
+      if (!deleted) {
+        await fsDeleteAssignment(id);
+      }
+
       setSelectedAssignmentId(null);
       setReportData(null);
       await fetchAssignments();

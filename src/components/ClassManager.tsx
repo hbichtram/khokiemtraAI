@@ -7,6 +7,15 @@ import {
   CheckCircle2, ShieldCheck, FileText
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import {
+  fsGetClasses,
+  fsCreateClass,
+  fsDeleteClass,
+  fsAddStudent,
+  fsAddStudentsBulk,
+  fsUpdateStudent,
+  fsDeleteStudent
+} from "../lib/firestoreData";
 
 export default function ClassManager() {
   const [classes, setClasses] = useState<Class[]>([]);
@@ -291,31 +300,36 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/classes/${selectedClass.id}/students/bulk`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          students: parsedData.validStudents
-        })
-      });
-
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Không thể thực hiện nhập danh sách học sinh.");
+      let resultCount = 0;
+      let handled = false;
+      try {
+        const res = await fetch(`/api/classes/${selectedClass.id}/students/bulk`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ students: parsedData.validStudents })
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          const result = await res.json();
+          resultCount = result.addedCount;
+          handled = true;
+        }
+      } catch (err) {
+        console.warn("API bulk student add failed, using Firestore:", err);
       }
 
-      const result = await res.json();
+      if (!handled) {
+        const res = await fsAddStudentsBulk(selectedClass.id, parsedData.validStudents);
+        resultCount = res.addedCount;
+      }
 
-      // Show success screen with exact stats
       setImportResult({
-        added: result.addedCount,
+        added: resultCount,
         skipped: parsedData.duplicates.length,
         errors: parsedData.errors.length
       });
 
-      // Refresh data
       await fetchClasses();
-
     } catch (err: any) {
       setValidationError(err.message || "Có lỗi xảy ra khi lưu dữ liệu học sinh.");
     } finally {
@@ -331,12 +345,24 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/classes");
-      if (!res.ok) throw new Error("Không thể tải danh sách lớp học");
-      const data = await res.json();
+      let data: Class[] = [];
+      let loaded = false;
+      try {
+        const res = await fetch("/api/classes");
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          data = await res.json();
+          loaded = true;
+        }
+      } catch (err) {
+        console.warn("API classes fetch failed, using Firestore:", err);
+      }
+
+      if (!loaded) {
+        data = await fsGetClasses();
+      }
+
       setClasses(data);
-      
-      // Keep selected class up to date if one is selected
       if (selectedClass) {
         const updated = data.find((c: Class) => c.id === selectedClass.id);
         if (updated) setSelectedClass(updated);
@@ -355,16 +381,25 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/classes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newClassName }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Không thể tạo lớp học");
+      let newCls: Class | null = null;
+      try {
+        const res = await fetch("/api/classes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: newClassName }),
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          newCls = await res.json();
+        }
+      } catch (err) {
+        console.warn("API create class failed, using Firestore:", err);
       }
-      const newCls = await res.json();
+
+      if (!newCls) {
+        newCls = await fsCreateClass(newClassName);
+      }
+
       setNewClassName("");
       setShowAddClass(false);
       setSuccess(`Đã tạo lớp ${newCls.name} thành công!`);
@@ -385,8 +420,18 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/classes/${classId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Không thể xóa lớp học");
+      let deleted = false;
+      try {
+        const res = await fetch(`/api/classes/${classId}`, { method: "DELETE" });
+        if (res.ok) deleted = true;
+      } catch (err) {
+        console.warn("API delete class failed, using Firestore:", err);
+      }
+
+      if (!deleted) {
+        await fsDeleteClass(classId);
+      }
+
       setSuccess("Đã xóa lớp học thành công");
       setTimeout(() => setSuccess(null), 3000);
       setSelectedClass(null);
@@ -405,18 +450,28 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/classes/${selectedClass.id}/students`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newStudentName,
-          studentCode: newStudentCode
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Không thể thêm học sinh");
+      let added = false;
+      try {
+        const res = await fetch(`/api/classes/${selectedClass.id}/students`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newStudentName,
+            studentCode: newStudentCode
+          }),
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          added = true;
+        }
+      } catch (err) {
+        console.warn("API add student failed, using Firestore:", err);
       }
+
+      if (!added) {
+        await fsAddStudent(selectedClass.id, newStudentName, newStudentCode);
+      }
+
       setNewStudentName("");
       setNewStudentCode("");
       setShowAddStudent(false);
@@ -437,18 +492,28 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/classes/${selectedClass.id}/students/${editingStudent.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newStudentName,
-          studentCode: newStudentCode
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Không thể cập nhật học sinh");
+      let edited = false;
+      try {
+        const res = await fetch(`/api/classes/${selectedClass.id}/students/${editingStudent.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: newStudentName,
+            studentCode: newStudentCode
+          }),
+        });
+        const contentType = res.headers.get("content-type");
+        if (res.ok && contentType && contentType.includes("application/json")) {
+          edited = true;
+        }
+      } catch (err) {
+        console.warn("API edit student failed, using Firestore:", err);
       }
+
+      if (!edited) {
+        await fsUpdateStudent(selectedClass.id, editingStudent.id, newStudentName, newStudentCode);
+      }
+
       setEditingStudent(null);
       setNewStudentName("");
       setNewStudentCode("");
@@ -471,10 +536,20 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/classes/${selectedClass.id}/students/${studentId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Không thể xóa học sinh");
+      let deleted = false;
+      try {
+        const res = await fetch(`/api/classes/${selectedClass.id}/students/${studentId}`, {
+          method: "DELETE",
+        });
+        if (res.ok) deleted = true;
+      } catch (err) {
+        console.warn("API delete student failed, using Firestore:", err);
+      }
+
+      if (!deleted) {
+        await fsDeleteStudent(selectedClass.id, studentId);
+      }
+
       setSuccess("Xóa học sinh thành công!");
       setTimeout(() => setSuccess(null), 3000);
       await fetchClasses();

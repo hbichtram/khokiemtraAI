@@ -4,6 +4,13 @@ import {
   FileText, Trash2, Copy, Send, Eye, Edit3, X, 
   Calendar, Check, AlertCircle, RefreshCw, Layers 
 } from "lucide-react";
+import {
+  fsGetExams,
+  fsGetClasses,
+  fsDeleteExam,
+  fsCopyExam,
+  fsCreateAssignment
+} from "../lib/firestoreData";
 
 interface ExamBankProps {
   onAssignCreated?: () => void;
@@ -33,22 +40,37 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
     setLoading(true);
     setError(null);
     try {
-      const [examsRes, classesRes] = await Promise.all([
-        fetch("/api/exams"),
-        fetch("/api/classes"),
-      ]);
+      let examsData: Exam[] = [];
+      let classesData: Class[] = [];
+      let loaded = false;
 
-      if (!examsRes.ok || !classesRes.ok) {
-        throw new Error("Không thể tải dữ liệu từ máy chủ.");
+      try {
+        const [examsRes, classesRes] = await Promise.all([
+          fetch("/api/exams"),
+          fetch("/api/classes"),
+        ]);
+
+        const eType = examsRes.headers.get("content-type");
+        const cType = classesRes.headers.get("content-type");
+
+        if (examsRes.ok && classesRes.ok && eType?.includes("application/json") && cType?.includes("application/json")) {
+          examsData = await examsRes.json();
+          classesData = await classesRes.json();
+          loaded = true;
+        }
+      } catch (err) {
+        console.warn("API fetch failed in ExamBank, using Firestore:", err);
       }
 
-      const examsData = await examsRes.json();
-      const classesData = await classesRes.json();
+      if (!loaded) {
+        examsData = await fsGetExams();
+        classesData = await fsGetClasses();
+      }
 
       setExams(examsData);
       setClasses(classesData);
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi");
+      setError(err.message || "Đã xảy ra lỗi khi tải dữ liệu");
     } finally {
       setLoading(false);
     }
@@ -62,8 +84,18 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/exams/${examId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Không thể xóa đề thi");
+      let deleted = false;
+      try {
+        const res = await fetch(`/api/exams/${examId}`, { method: "DELETE" });
+        if (res.ok) deleted = true;
+      } catch (err) {
+        console.warn("API delete exam failed, using Firestore:", err);
+      }
+
+      if (!deleted) {
+        await fsDeleteExam(examId);
+      }
+
       setSuccess("Xóa đề thi thành công!");
       setTimeout(() => setSuccess(null), 3000);
       await fetchExamsAndClasses();
@@ -78,8 +110,21 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/exams/${examId}/copy`, { method: "POST" });
-      if (!res.ok) throw new Error("Không thể sao chép đề thi");
+      let copied = false;
+      try {
+        const res = await fetch(`/api/exams/${examId}/copy`, { method: "POST" });
+        const cType = res.headers.get("content-type");
+        if (res.ok && cType?.includes("application/json")) {
+          copied = true;
+        }
+      } catch (err) {
+        console.warn("API copy exam failed, using Firestore:", err);
+      }
+
+      if (!copied) {
+        await fsCopyExam(examId);
+      }
+
       setSuccess("Đã sao chép đề thi thành bản sao mới!");
       setTimeout(() => setSuccess(null), 3000);
       await fetchExamsAndClasses();
@@ -100,20 +145,32 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          examId: assigningExam.id,
-          classId: selectedClassId,
-          startTime: new Date(startTime).toISOString(),
-          endTime: new Date(endTime).toISOString(),
-        }),
-      });
+      let assigned = false;
+      const startIso = new Date(startTime).toISOString();
+      const endIso = new Date(endTime).toISOString();
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Không thể lưu lịch giao bài");
+      try {
+        const res = await fetch("/api/assignments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            examId: assigningExam.id,
+            classId: selectedClassId,
+            startTime: startIso,
+            endTime: endIso,
+          }),
+        });
+
+        const cType = res.headers.get("content-type");
+        if (res.ok && cType?.includes("application/json")) {
+          assigned = true;
+        }
+      } catch (err) {
+        console.warn("API assign exam failed, using Firestore:", err);
+      }
+
+      if (!assigned) {
+        await fsCreateAssignment(assigningExam.id, selectedClassId, startIso, endIso);
       }
 
       setSuccess("Đã giao đề kiểm tra thành công tới lớp học!");
