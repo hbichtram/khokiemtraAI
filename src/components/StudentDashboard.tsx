@@ -6,6 +6,8 @@ import {
   Award, Play, Eye, LogOut, BookOpen, Clock, Calendar, 
   HelpCircle, RefreshCw, AlertCircle, Smile, GraduationCap 
 } from "lucide-react";
+import { doc, getDoc } from "firebase/firestore";
+import { db as firestoreDb } from "../firebase";
 
 interface StudentDashboardProps {
   user: User;
@@ -63,18 +65,80 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
     }
   }, [viewState]);
 
+  const fetchDashboardFromFirestore = async () => {
+    const snap = await getDoc(doc(firestoreDb, "appData", "main"));
+    if (!snap.exists()) {
+      throw new Error("Chưa có dữ liệu hệ thống.");
+    }
+    const appData = snap.data();
+    const classes = appData.classes || [];
+    const assignments = appData.assignments || [];
+    const exams = appData.exams || [];
+    const submissions = appData.submissions || [];
+
+    let cls = classes.find((c: any) => c.id === user.classId);
+    if (!cls) {
+      cls = classes.find((c: any) => c.students?.some((s: any) => s.id === user.id || (user.studentCode && s.studentCode === user.studentCode)));
+    }
+
+    const classId = cls?.id || user.classId;
+    setClassInfo(cls || { id: classId, name: user.className || "Lớp học" });
+
+    const classAssignments = assignments.filter((a: any) => a.classId === classId);
+
+    const active: any[] = [];
+    const completed: any[] = [];
+
+    for (const asg of classAssignments) {
+      const exam = exams.find((e: any) => e.id === asg.examId);
+      const sub = submissions.find((s: any) => s.assignmentId === asg.id && (s.studentId === user.id || (user.studentCode && s.studentCode === user.studentCode)));
+
+      const item = {
+        assignmentId: asg.id,
+        examId: asg.examId,
+        examTitle: exam?.title || "Bài kiểm tra",
+        examDuration: exam?.duration || 15,
+        totalQuestions: exam?.questions?.length || 0,
+        startTime: asg.startTime,
+        endTime: asg.endTime,
+        status: asg.status || "Đang diễn ra",
+        submission: sub || null
+      };
+
+      if (sub) {
+        completed.push(item);
+      } else {
+        active.push(item);
+      }
+    }
+
+    setActiveAssignments(active);
+    setCompletedAssignments(completed);
+  };
+
   const fetchDashboardData = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/student/${user.id}/dashboard`);
-      if (!res.ok) throw new Error("Không thể tải thông tin bảng học tập.");
-      const data = await res.json();
-      setActiveAssignments(data.activeAssignments || []);
-      setCompletedAssignments(data.completedAssignments || []);
-      setClassInfo(data.classInfo || null);
+      if (res.ok) {
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          setActiveAssignments(data.activeAssignments || []);
+          setCompletedAssignments(data.completedAssignments || []);
+          setClassInfo(data.classInfo || null);
+          return;
+        }
+      }
+      await fetchDashboardFromFirestore();
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi khi tải dữ liệu.");
+      try {
+        await fetchDashboardFromFirestore();
+      } catch (fsErr) {
+        console.error("Dashboard error:", fsErr);
+        setError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.");
+      }
     } finally {
       setLoading(false);
     }

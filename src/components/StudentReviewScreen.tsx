@@ -3,6 +3,8 @@ import {
   Award, RefreshCw, AlertCircle, ArrowLeft, Check, 
   HelpCircle, Lightbulb, BookOpen, MessageSquare 
 } from "lucide-react";
+import { doc, getDoc } from "firebase/firestore";
+import { db as firestoreDb } from "../firebase";
 
 interface StudentReviewScreenProps {
   submissionId: string;
@@ -21,16 +23,53 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
     fetchResult();
   }, [submissionId]);
 
+  const fetchResultFromFirestore = async () => {
+    const snap = await getDoc(doc(firestoreDb, "appData", "main"));
+    if (!snap.exists()) throw new Error("Chưa có dữ liệu hệ thống.");
+    const appData = snap.data();
+    const submissions = appData.submissions || [];
+    const exams = appData.exams || [];
+
+    const sub = submissions.find((s: any) => s.id === submissionId);
+    if (!sub) throw new Error("Không tìm thấy kết quả làm bài này.");
+
+    const exam = exams.find((e: any) => e.id === sub.examId);
+
+    const questionsList = exam?.questions || [];
+    const questionsWithResult = questionsList.map((q: any) => {
+      const studentAnswer = sub.answers ? sub.answers[q.id] : "";
+      const isCorrect = studentAnswer === q.correctAnswer;
+      return {
+        ...q,
+        studentAnswer,
+        isCorrect
+      };
+    });
+
+    setData({
+      submission: sub,
+      exam,
+      questions: questionsWithResult
+    });
+  };
+
   const fetchResult = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/student/result/${submissionId}`);
-      if (!res.ok) throw new Error("Không thể tải kết quả kiểm tra.");
-      const resultData = await res.json();
-      setData(resultData);
+      if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
+        const resultData = await res.json();
+        setData(resultData);
+        return;
+      }
+      await fetchResultFromFirestore();
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi");
+      try {
+        await fetchResultFromFirestore();
+      } catch (fsErr) {
+        setError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.");
+      }
     } finally {
       setLoading(false);
     }

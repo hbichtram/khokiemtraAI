@@ -4,6 +4,8 @@ import {
   Timer, ChevronLeft, ChevronRight, CheckCircle, 
   HelpCircle, AlertCircle, RefreshCw 
 } from "lucide-react";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db as firestoreDb } from "../firebase";
 
 interface StudentExamScreenProps {
   assignmentId: string;
@@ -44,6 +46,29 @@ export default function StudentExamScreen({
     };
   }, []);
 
+  const fetchExamFromFirestore = async () => {
+    const snap = await getDoc(doc(firestoreDb, "appData", "main"));
+    if (!snap.exists()) throw new Error("Không tìm thấy dữ liệu bài kiểm tra trên hệ thống.");
+    const data = snap.data();
+    const asg = (data.assignments || []).find((a: any) => a.id === assignmentId);
+    if (!asg) throw new Error("Không tìm thấy bài kiểm tra được giao.");
+    setAssignment(asg);
+
+    const ex = (data.exams || []).find((e: any) => e.id === asg.examId);
+    if (!ex || !ex.questions || ex.questions.length === 0) throw new Error("Không tìm thấy đề kiểm tra.");
+
+    setExam(ex);
+    setQuestions(ex.questions || []);
+    setTimeLeft(ex.duration * 60);
+    initialTimeRef.current = ex.duration * 60;
+
+    const saved = localStorage.getItem(`student_answers_${assignmentId}_${studentId}`);
+    if (saved) {
+      try { setAnswers(JSON.parse(saved)); } catch (e) {}
+    }
+    startTimer(ex.duration * 60);
+  };
+
   const fetchExam = async () => {
     setLoading(true);
     setError(null);
@@ -51,7 +76,13 @@ export default function StudentExamScreen({
       // Step 2: Fetch assignment by assignmentId
       const assignmentRes = await fetch(`/api/assignments/${assignmentId}`);
       if (!assignmentRes.ok) {
-        throw new Error("Không tìm thấy bài kiểm tra được giao.");
+        await fetchExamFromFirestore();
+        return;
+      }
+      const contentType = assignmentRes.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        await fetchExamFromFirestore();
+        return;
       }
       const assignmentData = await assignmentRes.json();
       setAssignment(assignmentData);
@@ -66,7 +97,8 @@ export default function StudentExamScreen({
       // Step 3-4: Fetch exam by examId
       const examRes = await fetch(`/api/exams/${examId}?role=student`);
       if (!examRes.ok) {
-        throw new Error("Không tìm thấy nội dung đề kiểm tra.");
+        await fetchExamFromFirestore();
+        return;
       }
       const examData = await examRes.json();
 
@@ -74,30 +106,25 @@ export default function StudentExamScreen({
         throw new Error("Đề kiểm tra chưa có câu hỏi.");
       }
 
-      console.log("[DEBUG_EXAM_LOADED]", {
-        examId: examData.id,
-        examExists: !!examData,
-        questionCount: examData.questions ? examData.questions.length : 0,
-        questions: examData.questions || []
-      });
-
       // Step 5: Initialize/Retrieve active exam session
-      const startRes = await fetch("/api/student/start-exam", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId,
-          assignmentId,
-          examId,
-          classId
-        })
-      });
-
-      if (!startRes.ok) {
-        const errData = await startRes.json();
-        throw new Error(errData.error || "Không thể khởi tạo phiên làm bài.");
+      let startData: any = {};
+      try {
+        const startRes = await fetch("/api/student/start-exam", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            studentId,
+            assignmentId,
+            examId,
+            classId
+          })
+        });
+        if (startRes.ok && startRes.headers.get("content-type")?.includes("application/json")) {
+          startData = await startRes.json();
+        }
+      } catch (e) {
+        console.warn("Notice starting exam session on server:", e);
       }
-      const startData = await startRes.json();
 
       setExam(examData);
       setQuestions(examData.questions || []);
@@ -124,7 +151,11 @@ export default function StudentExamScreen({
       // Start Countdown Timer
       startTimer(examData.duration * 60);
     } catch (err: any) {
-      setError(err.message || "Có lỗi xảy ra");
+      try {
+        await fetchExamFromFirestore();
+      } catch (fsErr) {
+        setError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.");
+      }
     } finally {
       setLoading(false);
     }
@@ -186,6 +217,57 @@ export default function StudentExamScreen({
     }
   };
 
+  const executeSubmitInFirestore = async (elapsedSeconds: number, targetExamId: string) => {
+    const snap = await getDoc(doc(firestoreDb, "appData", "main"));
+    if (!snap.exists()) throw new Error("Chưa có dữ liệu hệ thống.");
+    const data = snap.data();
+    const submissions = data.submissions || [];
+    const exams = data.exams || [];
+    const examObj = exams.find((e: any) => e.id === targetExamId) || exam;
+
+    let score = 0;
+    let correctCount = 0;
+    const questionsList = examObj?.questions || questions || [];
+    const totalQ = questionsList.length;
+
+    const details = questionsList.map((q: any) => {
+      const studentAns = answers[q.id] || "";
+      const isCorrect = studentAns === q.correctAnswer;
+      if (isCorrect) correctCount++;
+      return {
+        questionId: q.id,
+        studentAnswer: studentAns,
+        correctAnswer: q.correctAnswer,
+        isCorrect
+      };
+    });
+
+    if (totalQ > 0) {
+      score = Math.round((correctCount / totalQ) * 100) / 10;
+    }
+
+    const newSubId = `sub-${Date.now()}`;
+    const newSubmission = {
+      id: newSubId,
+      assignmentId,
+      studentId,
+      examId: targetExamId,
+      score,
+      correctCount,
+      totalQuestions: totalQ,
+      submittedAt: new Date().toISOString(),
+      duration: elapsedSeconds,
+      answers,
+      details
+    };
+
+    submissions.push(newSubmission);
+    data.submissions = submissions;
+
+    await setDoc(doc(firestoreDb, "appData", "main"), data);
+    return newSubId;
+  };
+
   const executeSubmit = async (isAuto = false) => {
     setShowSubmitConfirm(false);
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -193,17 +275,9 @@ export default function StudentExamScreen({
     setError(null);
 
     const elapsedSeconds = initialTimeRef.current - timeLeft;
-    const targetExamId = exam?.id;
-    const targetClassId = assignment?.classId;
+    const targetExamId = exam?.id || "";
 
-    console.log("[SUBMISSION_SAVING]", {
-      studentId,
-      assignmentId,
-      examId: targetExamId,
-      classId: targetClassId,
-      answers,
-      duration: elapsedSeconds
-    });
+    let submissionId = "";
 
     try {
       const res = await fetch("/api/student/submit", {
@@ -217,36 +291,35 @@ export default function StudentExamScreen({
         })
       });
 
-      if (!res.ok) {
-        const errData = await res.json();
-        throw new Error(errData.error || "Nộp bài không thành công.");
-      }
-
-      const result = await res.json();
-      
-      console.log("[SUBMISSION_SUCCESS]", {
-        submissionId: result.id
-      });
-
-      // Clean local storage answers
-      localStorage.removeItem(`student_answers_${assignmentId}_${studentId}`);
-
-      if (isAuto) {
-        alert("Đã hết thời gian làm bài! Hệ thống tự động nộp bài của em thành công.");
+      if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
+        const result = await res.json();
+        submissionId = result.id;
       } else {
-        alert("Chúc mừng em đã hoàn thành bài kiểm tra! Nhấn OK để xem đáp án giải thích.");
+        submissionId = await executeSubmitInFirestore(elapsedSeconds, targetExamId);
       }
-
-      onSubmitted(result.id);
-    } catch (err: any) {
-      console.log("[SUBMISSION_ERROR]", {
-        error: err.message || "Unknown error"
-      });
-      alert("Không thể nộp bài lúc này. Câu trả lời của em vẫn được giữ lại. Vui lòng thử lại.");
-      setError(err.message || "Gặp sự cố khi nộp bài. Em hãy báo lại thầy cô nhé!");
-    } finally {
-      setSubmitting(false);
+    } catch (err) {
+      try {
+        submissionId = await executeSubmitInFirestore(elapsedSeconds, targetExamId);
+      } catch (fsErr) {
+        console.error("Submit error:", fsErr);
+        alert("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.");
+        setError("Gặp sự cố khi nộp bài. Em hãy báo lại thầy cô nhé!");
+        setSubmitting(false);
+        return;
+      }
     }
+
+    // Clean local storage answers
+    localStorage.removeItem(`student_answers_${assignmentId}_${studentId}`);
+
+    if (isAuto) {
+      alert("Đã hết thời gian làm bài! Hệ thống tự động nộp bài của em thành công.");
+    } else {
+      alert("Chúc mừng em đã hoàn thành bài kiểm tra! Nhấn OK để xem đáp án giải thích.");
+    }
+
+    onSubmitted(submissionId);
+    setSubmitting(false);
   };
 
   const handleExitClick = () => {

@@ -6,6 +6,21 @@ import {
   Sparkles, GraduationCap, Users, Mail, Key, 
   ArrowRight, AlertCircle, RefreshCw, Smile 
 } from "lucide-react";
+import { 
+  signInWithEmailAndPassword, 
+  onAuthStateChanged, 
+  signOut 
+} from "firebase/auth";
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  collection, 
+  getDocs,
+  query,
+  where 
+} from "firebase/firestore";
+import { auth, db as firestoreDb } from "./firebase";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -13,6 +28,7 @@ export default function App() {
   
   // Login Form States
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [studentCode, setStudentCode] = useState("");
   
   const [appLoading, setAppLoading] = useState(true);
@@ -20,45 +36,170 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if user session exists in localStorage
-    const savedUser = localStorage.getItem("ai_smart_test_user");
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        console.error("Stale user session found:", e);
-        localStorage.removeItem("ai_smart_test_user");
+    // Listen to Firebase auth state changes
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (fbUser) {
+        try {
+          // Check teacher profile in Firestore (Collection: teachers, Document ID: UID)
+          const teacherDocRef = doc(firestoreDb, "teachers", fbUser.uid);
+          let docSnap = await getDoc(teacherDocRef);
+          let teacherData: User | null = null;
+
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            teacherData = {
+              id: fbUser.uid,
+              name: data.fullName || data.name || fbUser.displayName || "Hồng Bích Trâm",
+              email: fbUser.email || "",
+              role: "teacher"
+            };
+          } else {
+            // Check if teachers collection is empty or initial teacher setup
+            const teachersSnap = await getDocs(collection(firestoreDb, "teachers"));
+            if (teachersSnap.empty || fbUser.email === "tram.ai.ctst@gmail.com") {
+              const defaultName = fbUser.displayName || "Hồng Bích Trâm";
+              const initialTeacher = {
+                uid: fbUser.uid,
+                fullName: defaultName,
+                name: defaultName,
+                email: fbUser.email || "",
+                school: "Trường Tiểu học CTST",
+                department: "Tổ Tin học - Công nghệ",
+                subject: "Tin học",
+                role: "teacher",
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+              await setDoc(teacherDocRef, initialTeacher);
+              teacherData = {
+                id: fbUser.uid,
+                name: defaultName,
+                email: initialTeacher.email,
+                role: "teacher"
+              };
+            }
+          }
+
+          if (teacherData) {
+            setUser(teacherData);
+            localStorage.setItem("ai_smart_test_user", JSON.stringify(teacherData));
+          }
+        } catch (e) {
+          console.error("Auth state sync error:", e);
+        }
+      } else {
+        // If not authenticated via Firebase Auth, check if student session exists in localStorage
+        const savedUser = localStorage.getItem("ai_smart_test_user");
+        if (savedUser) {
+          try {
+            const parsedUser = JSON.parse(savedUser);
+            if (parsedUser.role === "student") {
+              setUser(parsedUser);
+            } else {
+              setUser(null);
+            }
+          } catch (e) {
+            console.error("Stale user session found:", e);
+            localStorage.removeItem("ai_smart_test_user");
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
       }
-    }
-    setAppLoading(false);
+      setAppLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleTeacherLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      setError("Vui lòng nhập Email.");
+      setError("Vui lòng nhập địa chỉ Email giáo viên.");
+      return;
+    }
+    if (!password) {
+      setError("Vui lòng nhập mật khẩu.");
       return;
     }
 
     setLoginLoading(true);
     setError(null);
-    try {
-      const res = await fetch("/api/auth/teacher-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim() })
-      });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Không thể đăng nhập.");
+    try {
+      // 1. Sign in with Firebase Authentication
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      const fbUser = userCredential.user;
+
+      // 2. Check teacher permission in Firestore
+      const teacherDocRef = doc(firestoreDb, "teachers", fbUser.uid);
+      let docSnap = await getDoc(teacherDocRef);
+
+      if (!docSnap.exists()) {
+        // Auto-provision teacher doc if collection is empty or owner email
+        const teachersSnap = await getDocs(collection(firestoreDb, "teachers"));
+        if (teachersSnap.empty || fbUser.email === "tram.ai.ctst@gmail.com") {
+          const defaultName = fbUser.displayName || "Hồng Bích Trâm";
+          const initialTeacher = {
+            uid: fbUser.uid,
+            fullName: defaultName,
+            name: defaultName,
+            email: fbUser.email || "",
+            school: "Trường Tiểu học CTST",
+            department: "Tổ Tin học - Công nghệ",
+            subject: "Tin học",
+            role: "teacher",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          await setDoc(teacherDocRef, initialTeacher);
+          docSnap = await getDoc(teacherDocRef);
+        }
       }
 
-      const userData = await res.json();
-      setUser(userData);
-      localStorage.setItem("ai_smart_test_user", JSON.stringify(userData));
+      if (!docSnap.exists()) {
+        // Account exists in Firebase Auth but not granted teacher permission
+        await signOut(auth);
+        setError("Tài khoản chưa được cấp quyền giáo viên.");
+        setLoginLoading(false);
+        return;
+      }
+
+      const teacherInfo = docSnap.data();
+      const teacherUser: User = {
+        id: fbUser.uid,
+        name: teacherInfo.fullName || teacherInfo.name || "Hồng Bích Trâm",
+        email: fbUser.email || email.trim(),
+        role: "teacher"
+      };
+
+      setUser(teacherUser);
+      localStorage.setItem("ai_smart_test_user", JSON.stringify(teacherUser));
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi kết nối tới máy chủ.");
+      console.error("Firebase auth error code:", err?.code, err?.message);
+      const errorCode = err?.code || "";
+
+      switch (errorCode) {
+        case "auth/invalid-credential":
+          setError("Email hoặc mật khẩu không chính xác.");
+          break;
+        case "auth/user-not-found":
+          setError("Không tìm thấy tài khoản giáo viên.");
+          break;
+        case "auth/wrong-password":
+          setError("Mật khẩu không chính xác.");
+          break;
+        case "auth/invalid-email":
+          setError("Địa chỉ email không hợp lệ.");
+          break;
+        case "auth/too-many-requests":
+          setError("Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau.");
+          break;
+        default:
+          setError("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+          break;
+      }
     } finally {
       setLoginLoading(false);
     }
@@ -66,41 +207,130 @@ export default function App() {
 
   const handleStudentLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!studentCode.trim()) {
+    const cleanCode = studentCode.trim().toUpperCase();
+    if (!cleanCode) {
       setError("Vui lòng nhập Mã học sinh.");
       return;
     }
 
     setLoginLoading(true);
     setError(null);
-    try {
-      const res = await fetch("/api/auth/student-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentCode: studentCode.trim() })
-      });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Đăng nhập thất bại.");
+    try {
+      let foundStudent: any = null;
+      let isInactive = false;
+
+      // 1. Check studentCodes collection in Firestore
+      try {
+        const studentCodesRef = collection(firestoreDb, "studentCodes");
+        const q = query(studentCodesRef, where("code", "==", cleanCode));
+        const qSnap = await getDocs(q);
+
+        if (!qSnap.empty) {
+          const docData: any = qSnap.docs[0].data();
+          if (docData.isActive === false || docData.active === false || docData.status === "inactive") {
+            isInactive = true;
+          } else {
+            foundStudent = {
+              id: qSnap.docs[0].id || docData.id || `student-${cleanCode}`,
+              name: docData.name || docData.studentName || `Học sinh ${cleanCode}`,
+              studentCode: cleanCode,
+              role: "student",
+              classId: docData.classId || "class-1",
+              className: docData.className || "Lớp học"
+            };
+          }
+        } else {
+          // Also check by document ID in studentCodes
+          const docRef = doc(firestoreDb, "studentCodes", cleanCode);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const docData: any = docSnap.data();
+            if (docData.isActive === false || docData.active === false || docData.status === "inactive") {
+              isInactive = true;
+            } else {
+              foundStudent = {
+                id: docSnap.id,
+                name: docData.name || docData.studentName || `Học sinh ${cleanCode}`,
+                studentCode: cleanCode,
+                role: "student",
+                classId: docData.classId || "class-1",
+                className: docData.className || "Lớp học"
+              };
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Notice checking studentCodes collection:", err);
       }
 
-      const userData = await res.json();
-      setUser(userData);
-      localStorage.setItem("ai_smart_test_user", JSON.stringify(userData));
+      // 2. If not found in studentCodes collection, search in appData/main classes
+      if (!foundStudent && !isInactive) {
+        const appDataSnap = await getDoc(doc(firestoreDb, "appData", "main"));
+        if (appDataSnap.exists()) {
+          const appData = appDataSnap.data();
+          const classes = appData.classes || [];
+
+          for (const cls of classes) {
+            const std = cls.students?.find(
+              (s: any) => s.studentCode && s.studentCode.trim().toUpperCase() === cleanCode
+            );
+            if (std) {
+              if (std.isActive === false || std.active === false || std.status === "inactive") {
+                isInactive = true;
+              } else {
+                foundStudent = {
+                  id: std.id,
+                  name: std.name,
+                  studentCode: cleanCode,
+                  role: "student",
+                  classId: cls.id,
+                  className: cls.name
+                };
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      if (isInactive) {
+        setError("Mã học sinh này hiện không hoạt động.");
+        return;
+      }
+
+      if (!foundStudent) {
+        setError("Mã học sinh không hợp lệ. Vui lòng kiểm tra lại mã được giáo viên cung cấp.");
+        return;
+      }
+
+      setUser(foundStudent);
+      localStorage.setItem("ai_smart_test_user", JSON.stringify(foundStudent));
     } catch (err: any) {
-      setError(err.message || "Mã học sinh không đúng hoặc lỗi mạng.");
+      console.error("Student login error:", err);
+      setError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.");
     } finally {
       setLoginLoading(false);
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error("Sign out error:", e);
+    }
     setUser(null);
     localStorage.removeItem("ai_smart_test_user");
     setEmail("");
+    setPassword("");
     setStudentCode("");
     setError(null);
+  };
+
+  const handleUpdateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem("ai_smart_test_user", JSON.stringify(updatedUser));
   };
 
   if (appLoading) {
@@ -116,7 +346,7 @@ export default function App() {
   // Route to designated dashboard if logged in
   if (user) {
     if (user.role === "teacher") {
-      return <TeacherDashboard user={user} onLogout={handleLogout} />;
+      return <TeacherDashboard user={user} onLogout={handleLogout} onUpdateUser={handleUpdateUser} />;
     } else {
       return <StudentDashboard user={user} onLogout={handleLogout} />;
     }
@@ -186,6 +416,7 @@ export default function App() {
               <div className="relative">
                 <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                 <input
+                  id="input-teacher-email"
                   type="email"
                   required
                   value={email}
@@ -201,8 +432,12 @@ export default function App() {
               <div className="relative">
                 <Key className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
                 <input
+                  id="input-teacher-password"
                   type="password"
-                  placeholder="Nhập mật khẩu (Bất kỳ để thử)"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu giáo viên"
                   className="w-full bg-slate-50 border border-slate-100 hover:border-slate-200 focus:bg-white rounded-2xl pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
                 />
               </div>
@@ -276,4 +511,5 @@ export default function App() {
     </div>
   );
 }
+
 
