@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
-import { db as firestoreDb } from "../firebase";
+import { db as firestoreDb, auth } from "../firebase";
 import { Class, Exam, Student, Assignment, Submission, Question } from "../types";
 
 export interface AppDataSchema {
@@ -213,12 +213,15 @@ export async function getAppData(): Promise<AppDataSchema> {
 export async function saveAppData(data: AppDataSchema): Promise<void> {
   try {
     const docRef = doc(firestoreDb, "appData", "main");
+    // Sanitize payload to strip undefined values which Firestore setDoc rejects
+    const sanitized = JSON.parse(JSON.stringify(data));
     await setDoc(docRef, {
-      ...data,
+      ...sanitized,
       updatedAt: new Date().toISOString()
     }, { merge: true });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Error saving app data to Firestore:", err);
+    throw new Error(err?.message || "Không thể lưu dữ liệu vào Firestore");
   }
 }
 
@@ -230,26 +233,86 @@ export async function fsGetClasses(): Promise<Class[]> {
   return data.classes;
 }
 
-export async function fsCreateClass(name: string): Promise<Class> {
-  const data = await getAppData();
-  const newClass: Class = {
-    id: `class-${Date.now()}`,
-    teacherId: "teacher-default",
-    name: name.trim(),
-    classCode: generateClassCode(data.classes),
-    students: []
-  };
+export async function fsCreateClass(name: string, teacherId?: string): Promise<Class> {
+  console.log("CREATE_CLASS_START", {
+    name,
+    teacherId
+  });
 
-  data.classes.push(newClass);
-  await saveAppData(data);
-  return newClass;
+  try {
+    const currentAuthUser = auth.currentUser;
+    const tid = teacherId || currentAuthUser?.uid || "teacher-default";
+
+    const data = await getAppData();
+    console.log("APP_DATA_BEFORE_CREATE", data);
+
+    if (!Array.isArray(data.classes)) {
+      data.classes = [];
+    }
+
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      throw new Error("Tên lớp học không được để trống.");
+    }
+
+    const newClass: Class = {
+      id: `class-${Date.now()}`,
+      teacherId: tid,
+      name: trimmedName,
+      classCode: generateClassCode(data.classes),
+      students: []
+    };
+
+    console.log("NEW_CLASS_CREATED", newClass);
+
+    // Save strictly to appData/main for central application state
+    data.classes.push(newClass);
+    console.log("APP_DATA_BEFORE_SAVE", data);
+
+    await saveAppData(data);
+    console.log("CREATE_CLASS_SAVE_SUCCESS");
+
+    console.log("CLASS_CREATED_SUCCESSFULLY", newClass.id);
+    return newClass;
+  } catch (error: any) {
+    console.error("CREATE_CLASS_ERROR", error);
+    throw error;
+  }
 }
 
 export async function fsDeleteClass(classId: string): Promise<void> {
-  const data = await getAppData();
-  data.classes = data.classes.filter((c) => c.id !== classId);
-  data.assignments = data.assignments.filter((asg) => asg.classId !== classId);
-  await saveAppData(data);
+  console.log("DELETE_CLASS_START", { classId });
+  try {
+    const data = await getAppData();
+    if (!Array.isArray(data.classes)) {
+      data.classes = [];
+    }
+
+    console.log("CLASSES_BEFORE_DELETE", data.classes);
+
+    const existingClass = data.classes.find((c) => c.id === classId);
+    if (!existingClass) {
+      throw new Error("Không tìm thấy lớp học cần xóa.");
+    }
+
+    const updatedClasses = data.classes.filter((c) => c.id !== classId);
+    console.log("CLASSES_AFTER_DELETE", updatedClasses);
+
+    data.classes = updatedClasses;
+    if (Array.isArray(data.assignments)) {
+      data.assignments = data.assignments.filter((asg) => asg.classId !== classId);
+    }
+
+    await saveAppData(data);
+    console.log("DELETE_CLASS_SUCCESS", { classId });
+  } catch (error: any) {
+    console.error("DELETE_CLASS_ERROR", {
+      code: error?.code,
+      message: error?.message,
+      error
+    });
+    throw error;
+  }
 }
 
 export async function fsAddStudent(classId: string, name: string, studentCode?: string): Promise<Student> {

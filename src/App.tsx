@@ -39,54 +39,51 @@ export default function App() {
     // Listen to Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        let name = fbUser.displayName || "Giáo viên";
+        let userEmail = fbUser.email || "";
+
         try {
-          // Check teacher profile in Firestore (Collection: teachers, Document ID: UID)
+          // Attempt to fetch teacher profile in Firestore (Collection: teachers, Document ID: UID)
           const teacherDocRef = doc(firestoreDb, "teachers", fbUser.uid);
-          let docSnap = await getDoc(teacherDocRef);
-          let teacherData: User | null = null;
+          const docSnap = await getDoc(teacherDocRef);
 
           if (docSnap.exists()) {
             const data = docSnap.data();
-            teacherData = {
-              id: fbUser.uid,
-              name: data.fullName || data.name || fbUser.displayName || "Hồng Bích Trâm",
-              email: fbUser.email || "",
-              role: "teacher"
-            };
+            if (data.fullName || data.name) {
+              name = data.fullName || data.name;
+            }
           } else {
-            // Check if teachers collection is empty or initial teacher setup
-            const teachersSnap = await getDocs(collection(firestoreDb, "teachers"));
-            if (teachersSnap.empty || fbUser.email === "tram.ai.ctst@gmail.com") {
-              const defaultName = fbUser.displayName || "Hồng Bích Trâm";
-              const initialTeacher = {
+            // Auto-provision teacher doc in Firestore if it doesn't exist yet
+            try {
+              await setDoc(teacherDocRef, {
                 uid: fbUser.uid,
-                fullName: defaultName,
-                name: defaultName,
-                email: fbUser.email || "",
+                fullName: name,
+                name: name,
+                email: userEmail,
                 school: "Trường Tiểu học CTST",
                 department: "Tổ Tin học - Công nghệ",
                 subject: "Tin học",
                 role: "teacher",
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
-              };
-              await setDoc(teacherDocRef, initialTeacher);
-              teacherData = {
-                id: fbUser.uid,
-                name: defaultName,
-                email: initialTeacher.email,
-                role: "teacher"
-              };
+              }, { merge: true });
+            } catch (saveErr) {
+              console.warn("Unable to save teacher doc to Firestore:", saveErr);
             }
           }
-
-          if (teacherData) {
-            setUser(teacherData);
-            localStorage.setItem("ai_smart_test_user", JSON.stringify(teacherData));
-          }
         } catch (e) {
-          console.error("Auth state sync error:", e);
+          console.warn("Auth state sync Firestore error (continuing with auth user):", e);
         }
+
+        const teacherData: User = {
+          id: fbUser.uid,
+          name: name,
+          email: userEmail,
+          role: "teacher"
+        };
+
+        setUser(teacherData);
+        localStorage.setItem("ai_smart_test_user", JSON.stringify(teacherData));
       } else {
         // If not authenticated via Firebase Auth, check if student session exists in localStorage
         const savedUser = localStorage.getItem("ai_smart_test_user");
@@ -132,44 +129,37 @@ export default function App() {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const fbUser = userCredential.user;
 
-      // 2. Check teacher permission in Firestore
-      const teacherDocRef = doc(firestoreDb, "teachers", fbUser.uid);
-      let docSnap = await getDoc(teacherDocRef);
+      let teacherName = fbUser.displayName || "Giáo viên";
 
-      if (!docSnap.exists()) {
-        // Auto-provision teacher doc if collection is empty or owner email
-        const teachersSnap = await getDocs(collection(firestoreDb, "teachers"));
-        if (teachersSnap.empty || fbUser.email === "tram.ai.ctst@gmail.com") {
-          const defaultName = fbUser.displayName || "Hồng Bích Trâm";
-          const initialTeacher = {
+      // 2. Check/create teacher profile in Firestore without blocking login if Firestore fails
+      try {
+        const teacherDocRef = doc(firestoreDb, "teachers", fbUser.uid);
+        const docSnap = await getDoc(teacherDocRef);
+
+        if (docSnap.exists()) {
+          const teacherInfo = docSnap.data();
+          teacherName = teacherInfo.fullName || teacherInfo.name || teacherName;
+        } else {
+          await setDoc(teacherDocRef, {
             uid: fbUser.uid,
-            fullName: defaultName,
-            name: defaultName,
-            email: fbUser.email || "",
+            fullName: teacherName,
+            name: teacherName,
+            email: fbUser.email || email.trim(),
             school: "Trường Tiểu học CTST",
             department: "Tổ Tin học - Công nghệ",
             subject: "Tin học",
             role: "teacher",
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          };
-          await setDoc(teacherDocRef, initialTeacher);
-          docSnap = await getDoc(teacherDocRef);
+          }, { merge: true });
         }
+      } catch (fsErr) {
+        console.warn("Firestore profile fetch/create skipped:", fsErr);
       }
 
-      if (!docSnap.exists()) {
-        // Account exists in Firebase Auth but not granted teacher permission
-        await signOut(auth);
-        setError("Tài khoản chưa được cấp quyền giáo viên.");
-        setLoginLoading(false);
-        return;
-      }
-
-      const teacherInfo = docSnap.data();
       const teacherUser: User = {
         id: fbUser.uid,
-        name: teacherInfo.fullName || teacherInfo.name || "Hồng Bích Trâm",
+        name: teacherName,
         email: fbUser.email || email.trim(),
         role: "teacher"
       };
@@ -185,16 +175,19 @@ export default function App() {
           setError("Email hoặc mật khẩu không chính xác.");
           break;
         case "auth/user-not-found":
-          setError("Không tìm thấy tài khoản giáo viên.");
+          setError("Không tìm thấy tài khoản.");
           break;
         case "auth/wrong-password":
           setError("Mật khẩu không chính xác.");
           break;
         case "auth/invalid-email":
-          setError("Địa chỉ email không hợp lệ.");
+          setError("Email không hợp lệ.");
           break;
         case "auth/too-many-requests":
-          setError("Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau.");
+          setError("Có quá nhiều lần thử. Vui lòng thử lại sau.");
+          break;
+        case "auth/network-request-failed":
+          setError("Lỗi kết nối mạng. Vui lòng kiểm tra kết nối.");
           break;
         default:
           setError("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");

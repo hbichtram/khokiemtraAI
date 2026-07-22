@@ -3,7 +3,7 @@
   "appId": "1:274243763018:web:ac4fe3099d214cdcdd5fb3",
   "apiKey": "AIzaSyBNitKSb2v9jokWfbA4h_GMmLKoykCWemU",
   "authDomain": "khokiemtraai.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-aismarttest-c55bffba-d579-4aa0-a60b-3b22e7d4c131",
+  "firestoreDatabaseId": "(default)",
   "storageBucket": "khokiemtraai.firebasestorage.app",
   "messagingSenderId": "274243763018",
   "measurementId": "",

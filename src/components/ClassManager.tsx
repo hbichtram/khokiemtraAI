@@ -48,6 +48,10 @@ export default function ClassManager() {
   const [importResult, setImportResult] = useState<any | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Delete confirmation modal states
+  const [classToDelete, setClassToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [studentToDelete, setStudentToDelete] = useState<{ id: string; name: string } | null>(null);
+
   const handleDownloadTemplate = () => {
     const templateData = [
       {
@@ -300,28 +304,8 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      let resultCount = 0;
-      let handled = false;
-      try {
-        const res = await fetch(`/api/classes/${selectedClass.id}/students/bulk`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ students: parsedData.validStudents })
-        });
-        const contentType = res.headers.get("content-type");
-        if (res.ok && contentType && contentType.includes("application/json")) {
-          const result = await res.json();
-          resultCount = result.addedCount;
-          handled = true;
-        }
-      } catch (err) {
-        console.warn("API bulk student add failed, using Firestore:", err);
-      }
-
-      if (!handled) {
-        const res = await fsAddStudentsBulk(selectedClass.id, parsedData.validStudents);
-        resultCount = res.addedCount;
-      }
+      const res = await fsAddStudentsBulk(selectedClass.id, parsedData.validStudents);
+      const resultCount = res.addedCount;
 
       setImportResult({
         added: resultCount,
@@ -345,22 +329,7 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      let data: Class[] = [];
-      let loaded = false;
-      try {
-        const res = await fetch("/api/classes");
-        const contentType = res.headers.get("content-type");
-        if (res.ok && contentType && contentType.includes("application/json")) {
-          data = await res.json();
-          loaded = true;
-        }
-      } catch (err) {
-        console.warn("API classes fetch failed, using Firestore:", err);
-      }
-
-      if (!loaded) {
-        data = await fsGetClasses();
-      }
+      const data = await fsGetClasses();
 
       setClasses(data);
       if (selectedClass) {
@@ -381,24 +350,7 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      let newCls: Class | null = null;
-      try {
-        const res = await fetch("/api/classes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newClassName }),
-        });
-        const contentType = res.headers.get("content-type");
-        if (res.ok && contentType && contentType.includes("application/json")) {
-          newCls = await res.json();
-        }
-      } catch (err) {
-        console.warn("API create class failed, using Firestore:", err);
-      }
-
-      if (!newCls) {
-        newCls = await fsCreateClass(newClassName);
-      }
+      const newCls = await fsCreateClass(newClassName);
 
       setNewClassName("");
       setShowAddClass(false);
@@ -406,38 +358,42 @@ export default function ClassManager() {
       setTimeout(() => setSuccess(null), 3000);
       await fetchClasses();
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi");
+      setError(err.message || "Đã xảy ra lỗi khi tạo lớp học");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteClass = async (classId: string, name: string) => {
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa lớp "${name}" không? Toàn bộ dữ liệu giao đề liên quan cũng sẽ bị xóa.`)) {
-      return;
-    }
+  const handleDeleteClass = (classId: string, name: string) => {
+    console.log("DELETE_BUTTON_CLICKED", { classId, name });
+    setClassToDelete({ id: classId, name });
+  };
+
+  const handleConfirmDeleteClass = async () => {
+    if (!classToDelete) return;
+    const { id: classId, name } = classToDelete;
+    console.log("DELETE_CLASS_START", { classId, name });
 
     setLoading(true);
     setError(null);
     try {
-      let deleted = false;
-      try {
-        const res = await fetch(`/api/classes/${classId}`, { method: "DELETE" });
-        if (res.ok) deleted = true;
-      } catch (err) {
-        console.warn("API delete class failed, using Firestore:", err);
-      }
+      await fsDeleteClass(classId);
 
-      if (!deleted) {
-        await fsDeleteClass(classId);
-      }
-
-      setSuccess("Đã xóa lớp học thành công");
+      console.log("DELETE_CLASS_SUCCESS", { classId });
+      setSuccess(`Đã xóa lớp "${name}" thành công`);
       setTimeout(() => setSuccess(null), 3000);
-      setSelectedClass(null);
+      if (selectedClass?.id === classId) {
+        setSelectedClass(null);
+      }
+      setClassToDelete(null);
       await fetchClasses();
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi");
+      console.error("DELETE_CLASS_ERROR", {
+        code: err?.code,
+        message: err?.message,
+        error: err
+      });
+      setError(err.message || "Đã xảy ra lỗi khi xóa lớp học");
     } finally {
       setLoading(false);
     }
@@ -450,27 +406,7 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      let added = false;
-      try {
-        const res = await fetch(`/api/classes/${selectedClass.id}/students`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: newStudentName,
-            studentCode: newStudentCode
-          }),
-        });
-        const contentType = res.headers.get("content-type");
-        if (res.ok && contentType && contentType.includes("application/json")) {
-          added = true;
-        }
-      } catch (err) {
-        console.warn("API add student failed, using Firestore:", err);
-      }
-
-      if (!added) {
-        await fsAddStudent(selectedClass.id, newStudentName, newStudentCode);
-      }
+      await fsAddStudent(selectedClass.id, newStudentName, newStudentCode);
 
       setNewStudentName("");
       setNewStudentCode("");
@@ -492,27 +428,7 @@ export default function ClassManager() {
     setLoading(true);
     setError(null);
     try {
-      let edited = false;
-      try {
-        const res = await fetch(`/api/classes/${selectedClass.id}/students/${editingStudent.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: newStudentName,
-            studentCode: newStudentCode
-          }),
-        });
-        const contentType = res.headers.get("content-type");
-        if (res.ok && contentType && contentType.includes("application/json")) {
-          edited = true;
-        }
-      } catch (err) {
-        console.warn("API edit student failed, using Firestore:", err);
-      }
-
-      if (!edited) {
-        await fsUpdateStudent(selectedClass.id, editingStudent.id, newStudentName, newStudentCode);
-      }
+      await fsUpdateStudent(selectedClass.id, editingStudent.id, newStudentName, newStudentCode);
 
       setEditingStudent(null);
       setNewStudentName("");
@@ -527,34 +443,25 @@ export default function ClassManager() {
     }
   };
 
-  const handleDeleteStudent = async (studentId: string, name: string) => {
-    if (!selectedClass) return;
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa học sinh "${name}" khỏi lớp không?`)) {
-      return;
-    }
+  const handleDeleteStudent = (studentId: string, name: string) => {
+    setStudentToDelete({ id: studentId, name });
+  };
+
+  const handleConfirmDeleteStudent = async () => {
+    if (!selectedClass || !studentToDelete) return;
+    const { id: studentId, name } = studentToDelete;
 
     setLoading(true);
     setError(null);
     try {
-      let deleted = false;
-      try {
-        const res = await fetch(`/api/classes/${selectedClass.id}/students/${studentId}`, {
-          method: "DELETE",
-        });
-        if (res.ok) deleted = true;
-      } catch (err) {
-        console.warn("API delete student failed, using Firestore:", err);
-      }
+      await fsDeleteStudent(selectedClass.id, studentId);
 
-      if (!deleted) {
-        await fsDeleteStudent(selectedClass.id, studentId);
-      }
-
-      setSuccess("Xóa học sinh thành công!");
+      setSuccess(`Đã xóa học sinh "${name}" thành công!`);
       setTimeout(() => setSuccess(null), 3000);
+      setStudentToDelete(null);
       await fetchClasses();
     } catch (err: any) {
-      setError(err.message || "Đã xảy ra lỗi");
+      setError(err.message || "Đã xảy ra lỗi khi xóa học sinh");
     } finally {
       setLoading(false);
     }
@@ -765,6 +672,13 @@ export default function ClassManager() {
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-100 active:scale-[0.98] transition-all"
               >
                 <Plus className="w-4 h-4" /> Thêm học sinh
+              </button>
+              <button
+                onClick={() => handleDeleteClass(selectedClass.id, selectedClass.name)}
+                className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-4 py-3 rounded-2xl text-xs font-black flex items-center gap-1.5 cursor-pointer active:scale-[0.98] transition-all"
+                title="Xóa lớp học này"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600" /> Xóa lớp
               </button>
             </div>
           </div>
@@ -1216,6 +1130,82 @@ export default function ClassManager() {
                   Quay lại lớp học
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Class Confirmation Modal */}
+      {classToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-100 rounded-[28px] max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 bg-rose-50 rounded-2xl border border-rose-100 shrink-0">
+                <Trash2 className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-lg">Xác nhận xóa lớp học</h3>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Hành động không thể hoàn tác</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 font-medium leading-relaxed">
+              Thầy/cô có chắc chắn muốn xóa lớp <strong className="text-slate-900 font-bold">"{classToDelete.name}"</strong> không? Toàn bộ dữ liệu bài tập và điểm số liên quan của lớp này cũng sẽ bị xóa.
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setClassToDelete(null)}
+                className="px-5 py-3 rounded-2xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleConfirmDeleteClass}
+                className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-extrabold text-xs shadow-lg shadow-rose-100 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2"
+              >
+                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Xóa lớp ngay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Student Confirmation Modal */}
+      {studentToDelete && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-100 rounded-[28px] max-w-md w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center gap-3 text-rose-600">
+              <div className="p-3 bg-rose-50 rounded-2xl border border-rose-100 shrink-0">
+                <Trash2 className="w-6 h-6 text-rose-600" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-lg">Xác nhận xóa học sinh</h3>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-0.5">Xóa khỏi danh sách lớp</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 font-medium leading-relaxed">
+              Thầy/cô có chắc chắn muốn xóa học sinh <strong className="text-slate-900 font-bold">"{studentToDelete.name}"</strong> khỏi lớp không?
+            </p>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setStudentToDelete(null)}
+                className="px-5 py-3 rounded-2xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition-all cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={handleConfirmDeleteStudent}
+                className="px-5 py-3 rounded-2xl bg-rose-600 hover:bg-rose-700 disabled:bg-rose-400 text-white font-extrabold text-xs shadow-lg shadow-rose-100 active:scale-[0.98] transition-all cursor-pointer flex items-center gap-2"
+              >
+                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Xóa học sinh
+              </button>
             </div>
           </div>
         </div>

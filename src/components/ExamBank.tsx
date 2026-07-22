@@ -40,32 +40,10 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
     setLoading(true);
     setError(null);
     try {
-      let examsData: Exam[] = [];
-      let classesData: Class[] = [];
-      let loaded = false;
-
-      try {
-        const [examsRes, classesRes] = await Promise.all([
-          fetch("/api/exams"),
-          fetch("/api/classes"),
-        ]);
-
-        const eType = examsRes.headers.get("content-type");
-        const cType = classesRes.headers.get("content-type");
-
-        if (examsRes.ok && classesRes.ok && eType?.includes("application/json") && cType?.includes("application/json")) {
-          examsData = await examsRes.json();
-          classesData = await classesRes.json();
-          loaded = true;
-        }
-      } catch (err) {
-        console.warn("API fetch failed in ExamBank, using Firestore:", err);
-      }
-
-      if (!loaded) {
-        examsData = await fsGetExams();
-        classesData = await fsGetClasses();
-      }
+      const [examsData, classesData] = await Promise.all([
+        fsGetExams(),
+        fsGetClasses(),
+      ]);
 
       setExams(examsData);
       setClasses(classesData);
