@@ -1,0 +1,6 @@
+{
+  "name": "AI SMART TEST",
+  "description": "Học tập thông minh • Tiến bộ mỗi ngày",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

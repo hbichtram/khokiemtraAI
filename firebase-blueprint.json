@@ -1,0 +1,50 @@
+{
+  "entities": {
+    "classes": {
+      "title": "Class",
+      "description": "Lớp học do giáo viên quản lý",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "grade": { "type": "string" },
+        "teacherId": { "type": "string" }
+      },
+      "required": ["id", "name", "teacherId"]
+    },
+    "exams": {
+      "title": "Exam",
+      "description": "Đề thi được tạo bởi giáo viên",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "grade": { "type": "string" },
+        "teacherId": { "type": "string" }
+      },
+      "required": ["id", "title", "teacherId"]
+    },
+    "assignments": {
+      "title": "Assignment",
+      "description": "Bài kiểm tra đã giao cho lớp",
+      "properties": {
+        "id": { "type": "string" },
+        "examId": { "type": "string" },
+        "classId": { "type": "string" },
+        "teacherId": { "type": "string" }
+      },
+      "required": ["id", "examId", "classId"]
+    },
+    "submissions": {
+      "title": "Submission",
+      "description": "Bài làm của học sinh",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "assignmentId": { "type": "string" },
+        "examId": { "type": "string" },
+        "score": { "type": "number" }
+      },
+      "required": ["id", "studentId", "assignmentId", "examId"]
+    }
+  }
+}

@@ -1,0 +1,29 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #F0F4F8;
+  color: #1e293b;
+}
+
+/* Custom shadow classes matching the vibrant theme */
+.shadow-vibrant-indigo {
+  box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.15), 0 4px 6px -4px rgba(79, 70, 229, 0.15);
+}
+.shadow-vibrant-blue {
+  box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.15), 0 4px 6px -4px rgba(59, 130, 246, 0.15);
+}
+.shadow-vibrant-emerald {
+  box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.15), 0 4px 6px -4px rgba(16, 185, 129, 0.15);
+}
+.shadow-vibrant-amber {
+  box-shadow: 0 10px 15px -3px rgba(245, 158, 11, 0.15), 0 4px 6px -4px rgba(245, 158, 11, 0.15);
+}
+.shadow-vibrant-rose {
+  box-shadow: 0 10px 15px -3px rgba(244, 63, 94, 0.15), 0 4px 6px -4px rgba(244, 63, 94, 0.15);
+}
