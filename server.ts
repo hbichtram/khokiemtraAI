@@ -24,6 +24,17 @@ const firestoreDb = getFirestore(firebaseApp);
 const app = express();
 app.use(express.json());
 
+// Enable CORS for all incoming requests (Vercel Production & Local)
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  next();
+});
+
 const PORT = 3000;
 const DB_FILE = path.join(process.cwd(), "db.json");
 
@@ -324,15 +335,10 @@ function updateAssignmentStatuses() {
 
 // Initialize Gemini Client helper
 function getGeminiClient(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY;
+  const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || "").trim();
   if (!apiKey) return null;
   return new GoogleGenAI({
     apiKey,
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
-      },
-    },
   });
 }
 
@@ -878,19 +884,24 @@ function parseAIResponseJSON(rawText: string): any {
   }
 }
 
-app.post("/api/exams/generate", async (req, res) => {
-  const { grade, topic, content, quantity } = req.body;
+const handleGenerateExam = async (req: express.Request, res: express.Response) => {
+  const grade = req.body.grade || req.body.subject || "Lớp 5";
+  const topic = req.body.topic || req.body.subject || "Tin học";
+  const content = req.body.content || "";
+  const quantity = Number(req.body.quantity || req.body.questionCount || req.body.count) || 5;
 
-  if (!grade || !topic || !quantity) {
-    return res.status(400).json({ error: "Vui lòng nhập đầy đủ khối lớp, chủ đề và số câu hỏi." });
+  if (!grade && !topic) {
+    return res.status(400).json({ error: "Vui lòng nhập đầy đủ thông tin khối lớp hoặc chủ đề." });
   }
 
   const aiClient = getGeminiClient();
   if (!aiClient) {
-    return res.status(500).json({ error: "Hệ thống AI chưa được kích hoạt khóa API. Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables." });
+    return res.status(500).json({ 
+      error: "Hệ thống AI chưa nhận được khóa API (GEMINI_API_KEY). Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables trên Vercel và kích hoạt Redeploy." 
+    });
   }
 
-  const qty = Number(quantity) || 5;
+  const qty = quantity > 0 ? quantity : 5;
 
   const prompt = `Bạn là một trợ lý AI tạo đề thi Tin học tiểu học chuyên nghiệp cho giáo viên Việt Nam.
 Hãy tạo đề kiểm tra Tin học lớp "${grade}" (đối tượng học sinh là các em tiểu học 8-11 tuổi).
@@ -975,27 +986,30 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
       };
     });
 
-    res.json({
+    return res.json({
       title: titleVal,
       questions: formattedQuestions
     });
   } catch (error: any) {
     console.error("AI Generation Error:", error);
-    res.status(500).json({ error: `Không thể tạo câu hỏi qua AI: ${error.message || error}` });
+    return res.status(500).json({ error: `Không thể tạo câu hỏi qua AI: ${error.message || error}` });
   }
-});
+};
 
-// Request AI to regenerate a single question
-app.post("/api/exams/generate-single-question", async (req, res) => {
-  const { grade, topic, currentQuestionText } = req.body;
+const handleGenerateSingleQuestion = async (req: express.Request, res: express.Response) => {
+  const grade = req.body.grade || req.body.subject || "Lớp 5";
+  const topic = req.body.topic || req.body.subject || "Tin học";
+  const currentQuestionText = req.body.currentQuestionText || "";
 
-  if (!grade || !topic) {
+  if (!grade && !topic) {
     return res.status(400).json({ error: "Thiếu thông tin khối lớp hoặc chủ đề." });
   }
 
   const aiClient = getGeminiClient();
   if (!aiClient) {
-    return res.status(500).json({ error: "Khóa API chưa được cấu hình." });
+    return res.status(500).json({ 
+      error: "Hệ thống AI chưa nhận được khóa API (GEMINI_API_KEY). Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables trên Vercel." 
+    });
   }
 
   const prompt = `Bạn là một trợ lý giáo viên Tin học tiểu học. Hãy tạo MỘT câu hỏi trắc nghiệm mới tinh hoàn toàn về chủ đề "${topic}" dành cho học sinh "${grade}".
@@ -1053,12 +1067,27 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
       difficulty: ["Nhận biết", "Thông hiểu", "Vận dụng"].includes(parsedData.difficulty) ? parsedData.difficulty : "Thông hiểu"
     };
 
-    res.json({ question: questionObj });
+    return res.json({ question: questionObj });
   } catch (error: any) {
     console.error("AI Single Question Generation Error:", error);
-    res.status(500).json({ error: `Không thể tạo lại câu hỏi này: ${error.message || error}` });
+    return res.status(500).json({ error: `Không thể tạo lại câu hỏi này: ${error.message || error}` });
   }
-});
+};
+
+// Register AI routes across multiple subpaths to ensure compatibility with all Vercel rewriting rules
+app.post("/api/exams/generate", handleGenerateExam);
+app.post("/exams/generate", handleGenerateExam);
+app.post("/api/generate", handleGenerateExam);
+
+app.post("/api/exams/generate-single-question", handleGenerateSingleQuestion);
+app.post("/exams/generate-single-question", handleGenerateSingleQuestion);
+
+const apiRouter = express.Router();
+apiRouter.post("/exams/generate", handleGenerateExam);
+apiRouter.post("/exams/generate-single-question", handleGenerateSingleQuestion);
+
+app.use("/api", apiRouter);
+app.use("/", apiRouter);
 
 
 // ==========================================

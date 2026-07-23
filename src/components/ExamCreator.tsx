@@ -48,7 +48,14 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
         const res = await fetch("/api/exams/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ grade, topic, content, quantity })
+          body: JSON.stringify({ 
+            grade, 
+            subject: grade,
+            topic, 
+            content, 
+            quantity: Number(quantity) || 5,
+            questionCount: Number(quantity) || 5 
+          })
         });
 
         const data = await res.json().catch(() => null);
@@ -59,8 +66,10 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
           generated = true;
         } else if (data && data.error) {
           apiError = data.error;
+        } else if (!res.ok) {
+          apiError = `Lỗi máy chủ khi gọi AI (Mã HTTP: ${res.status} ${res.statusText || ""}). Vui lòng kiểm tra lại GEMINI_API_KEY trên Vercel.`;
         } else {
-          apiError = "Không thể tạo câu hỏi qua AI. Vui lòng kiểm tra lại.";
+          apiError = "Máy chủ AI không phản hồi danh sách câu hỏi hợp lệ. Vui lòng thử lại.";
         }
       } catch (err: any) {
         console.warn("API AI generate network request failed:", err);
