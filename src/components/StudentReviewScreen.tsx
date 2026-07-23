@@ -24,6 +24,17 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
     fetchResult();
   }, [submissionId]);
 
+  const safeFormatDateTime = (dateVal: any) => {
+    if (!dateVal) return "Vừa xong";
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return "Vừa xong";
+      return d.toLocaleString("vi-VN");
+    } catch (e) {
+      return "Vừa xong";
+    }
+  };
+
   const fetchResultFromFirestore = async () => {
     const snap = await getDoc(doc(firestoreDb, "appData", "main"));
     if (!snap.exists()) throw new Error("Chưa có dữ liệu hệ thống.");
@@ -35,11 +46,12 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
     if (!sub) throw new Error("Không tìm thấy kết quả làm bài này.");
 
     const exam = exams.find((e: any) => e.id === sub.examId);
+    if (!exam) throw new Error("Không tìm thấy nội dung đề thi.");
 
     const questionsList = exam?.questions || [];
     const questionsWithResult = questionsList.map((q: any) => {
-      const studentAnswer = sub.answers ? sub.answers[q.id] : "";
-      const isCorrect = studentAnswer === q.correctAnswer;
+      const studentAnswer = sub.answers ? sub.answers[q.id] || "" : "";
+      const isCorrect = studentAnswer.toString().toUpperCase() === (q.correctAnswer || "").toString().toUpperCase();
       return {
         ...q,
         studentAnswer,
@@ -47,9 +59,23 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
       };
     });
 
+    const correctCount = sub.correctCount ?? questionsWithResult.filter((q: any) => q.isCorrect).length;
+    const wrongCount = sub.wrongCount ?? (questionsWithResult.length - correctCount);
+    const scoreVal = typeof sub.score === "number" ? sub.score : (questionsWithResult.length > 0 ? Math.round((correctCount / questionsWithResult.length) * 100) / 10 : 0);
+
     setData({
-      submission: sub,
-      exam,
+      submission: {
+        ...sub,
+        score: scoreVal,
+        correctCount,
+        wrongCount,
+        submittedAt: sub.submittedAt || new Date().toISOString()
+      },
+      exam: {
+        title: exam.title || "Bài kiểm tra",
+        grade: exam.grade || "Tin học",
+        topic: exam.topic || "Tin học"
+      },
       questions: questionsWithResult
     });
   };
@@ -144,7 +170,7 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs font-bold text-slate-400 pt-1">
             <span>Khối lớp: <strong className="text-slate-700">{exam.grade}</strong></span>
             <span>Chủ đề: <strong className="text-slate-700">{exam.topic}</strong></span>
-            <span>Ngày nộp: <strong className="text-slate-700">{new Date(submission.submittedAt).toLocaleString("vi-VN")}</strong></span>
+            <span>Ngày nộp: <strong className="text-slate-700">{safeFormatDateTime(submission.submittedAt)}</strong></span>
           </div>
           <p className="text-sm font-bold text-slate-700 italic pt-2 leading-relaxed">
             {isExcellent 

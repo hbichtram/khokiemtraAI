@@ -324,7 +324,7 @@ function updateAssignmentStatuses() {
 
 // Initialize Gemini Client helper
 function getGeminiClient(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY;
   if (!apiKey) return null;
   return new GoogleGenAI({
     apiKey,
@@ -767,7 +767,7 @@ async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayM
   const originalModel = options.model;
   const aiClient = getGeminiClient();
   if (!aiClient) {
-    throw new Error("Chưa cấu hình GEMINI_API_KEY.");
+    throw new Error("Chưa cấu hình khóa API GEMINI_API_KEY trên môi trường. Vui lòng kiểm tra Environment Variables.");
   }
 
   while (attempt < maxRetries) {
@@ -790,10 +790,10 @@ async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayM
         throw error;
       }
 
-      // Automatically fallback to alternative models on transient or model name errors
-      if (options.model === "gemini-3.6-flash") {
+      // Fallback hierarchy for active working models
+      if (options.model === "gemini-3.5-flash") {
         options.model = "gemini-flash-latest";
-        console.warn(`Gemini 3.6-flash failed (${errStr}). Falling back to gemini-flash-latest...`);
+        console.warn(`Gemini 3.5-flash failed (${errStr}). Falling back to gemini-flash-latest...`);
       } else if (options.model === "gemini-flash-latest") {
         options.model = "gemini-3.1-flash-lite";
         console.warn(`Gemini-flash-latest failed (${errStr}). Falling back to gemini-3.1-flash-lite...`);
@@ -817,7 +817,7 @@ app.post("/api/exams/generate", async (req, res) => {
 
   const aiClient = getGeminiClient();
   if (!aiClient) {
-    return res.status(500).json({ error: "Hệ thống AI chưa được kích hoạt khóa API. Vui lòng kiểm tra khóa GEMINI_API_KEY trong cài đặt." });
+    return res.status(500).json({ error: "Hệ thống AI chưa được kích hoạt khóa API. Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables." });
   }
 
   const qty = Number(quantity) || 5;
@@ -850,7 +850,7 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
 
   try {
     const response = await generateContentWithRetry({
-      model: "gemini-3.6-flash",
+      model: "gemini-3.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -882,12 +882,17 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
       }
     });
 
-    const text = response.text;
-    if (!text) {
-      throw new Error("Không có phản hồi từ mô hình AI.");
+    const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) {
+      throw new Error("Không nhận được dữ liệu phản hồi từ mô hình AI.");
     }
 
-    const data = JSON.parse(text.trim());
+    let cleanText = rawText.trim();
+    if (cleanText.startsWith("```")) {
+      cleanText = cleanText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    }
+
+    const data = JSON.parse(cleanText);
     // Assign random ids to questions
     if (data.questions && Array.isArray(data.questions)) {
       data.questions = data.questions.map((q: any, idx: number) => ({
@@ -935,7 +940,7 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
 
   try {
     const response = await generateContentWithRetry({
-      model: "gemini-3.6-flash",
+      model: "gemini-3.5-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -957,12 +962,17 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
       }
     });
 
-    const text = response.text;
-    if (!text) {
+    const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) {
       throw new Error("Không nhận được dữ liệu phản hồi.");
     }
 
-    const questionData = JSON.parse(text.trim());
+    let cleanText = rawText.trim();
+    if (cleanText.startsWith("```")) {
+      cleanText = cleanText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    }
+
+    const questionData = JSON.parse(cleanText);
     questionData.id = `q-ai-single-${Date.now()}`;
     res.json(questionData);
   } catch (error: any) {
@@ -1080,11 +1090,14 @@ app.get("/api/student/:studentId/dashboard", (req, res) => {
   updateAssignmentStatuses();
   const studentId = req.params.studentId;
 
-  // Find class of student
+  // Find class of student by ID or studentCode
   let cls: Class | null = null;
+  let targetStudent: Student | null = null;
   for (const c of db.classes) {
-    if (c.students.some((s) => s.id === studentId)) {
+    const std = c.students.find((s) => s.id === studentId || (s.studentCode && s.studentCode.toUpperCase() === studentId.toUpperCase()));
+    if (std) {
       cls = c;
+      targetStudent = std;
       break;
     }
   }
@@ -1103,7 +1116,13 @@ app.get("/api/student/:studentId/dashboard", (req, res) => {
     const exam = db.exams.find((e) => e.id === asg.examId);
     if (!exam) return;
 
-    const submission = db.submissions.find((s) => s.assignmentId === asg.id && s.studentId === studentId);
+    const submission = db.submissions.find(
+      (s) => s.assignmentId === asg.id && (
+        s.studentId === studentId || 
+        (targetStudent?.id && s.studentId === targetStudent.id) ||
+        (targetStudent?.studentCode && (s as any).studentCode === targetStudent.studentCode)
+      )
+    );
     const isSubmitted = submission && (submission.status === "submitted" || !submission.status);
 
     // Robust dynamic check: if current time is within range, force status to "Đang diễn ra"
@@ -1648,7 +1667,12 @@ if (process.env.NODE_ENV !== "production") {
   });
 }
 
-// Start Server listening
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
-});
+// Export app for Vercel Serverless Functions
+export default app;
+
+// Start Server listening (for Cloud Run / container / dev environments)
+if (!process.env.VERCEL) {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+}

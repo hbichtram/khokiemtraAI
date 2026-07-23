@@ -254,9 +254,11 @@ export default function StudentExamScreen({
       examId: targetExamId,
       score,
       correctCount,
+      wrongCount: totalQ - correctCount,
       totalQuestions: totalQ,
       submittedAt: new Date().toISOString(),
       duration: elapsedSeconds,
+      status: "submitted",
       answers,
       details
     };
@@ -294,6 +296,12 @@ export default function StudentExamScreen({
       if (res.ok && res.headers.get("content-type")?.includes("application/json")) {
         const result = await res.json();
         submissionId = result.id;
+        // Keep Firestore in sync for student & teacher views
+        try {
+          await executeSubmitInFirestore(elapsedSeconds, targetExamId);
+        } catch (fsSyncErr) {
+          console.warn("Notice syncing Firestore after API submission:", fsSyncErr);
+        }
       } else {
         submissionId = await executeSubmitInFirestore(elapsedSeconds, targetExamId);
       }

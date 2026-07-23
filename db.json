@@ -1,0 +1,790 @@
+{
+  "classes": [
+    {
+      "teacherId": "teacher-default",
+      "students": [
+        {
+          "id": "student-1",
+          "studentCode": "HS3A01",
+          "name": "Nguyễn Văn An",
+          "classId": "class-1"
+        },
+        {
+          "classId": "class-1",
+          "id": "student-2",
+          "studentCode": "HS3A02",
+          "name": "Lê Thị Bình"
+        },
+        {
+          "classId": "class-1",
+          "name": "Trần Minh Cường",
+          "id": "student-3",
+          "studentCode": "HS3A03"
+        },
+        {
+          "id": "student-1784686515927-7itj9qp",
+          "studentCode": "HS001",
+          "name": "Nguyễn Văn An",
+          "createdAt": "2026-07-22T02:15:15.927Z",
+          "classId": "class-1",
+          "teacherId": "teacher-default"
+        },
+        {
+          "teacherId": "teacher-default",
+          "id": "student-1784686515927-x4hxx5q",
+          "studentCode": "HS002",
+          "name": "Trần Thị Bình",
+          "createdAt": "2026-07-22T02:15:15.927Z",
+          "classId": "class-1"
+        },
+        {
+          "createdAt": "2026-07-22T02:15:15.927Z",
+          "classId": "class-1",
+          "id": "student-1784686515927-034vcuc",
+          "studentCode": "HS003",
+          "name": "Nguyễn Ngọc Thúy An",
+          "teacherId": "teacher-default"
+        },
+        {
+          "studentCode": "HS004",
+          "id": "student-1784686515927-cvu14ya",
+          "name": "Võ Tuấn An",
+          "createdAt": "2026-07-22T02:15:15.927Z",
+          "classId": "class-1",
+          "teacherId": "teacher-default"
+        },
+        {
+          "teacherId": "teacher-default",
+          "classId": "class-1",
+          "createdAt": "2026-07-22T02:15:15.927Z",
+          "name": "Khưu Minh Anh",
+          "studentCode": "HS005",
+          "id": "student-1784686515928-n2gx4cl"
+        },
+        {
+          "teacherId": "teacher-default",
+          "id": "student-1784686515928-s1lsm2z",
+          "studentCode": "HS006",
+          "name": "Thạch Thị Hà Anh",
+          "createdAt": "2026-07-22T02:15:15.927Z",
+          "classId": "class-1"
+        },
+        {
+          "studentCode": "HS007",
+          "id": "student-1784686515928-2gnvah6",
+          "name": "Võ Trung Tuấn Anh",
+          "createdAt": "2026-07-22T02:15:15.927Z",
+          "classId": "class-1",
+          "teacherId": "teacher-default"
+        },
+        {
+          "createdAt": "2026-07-22T02:15:15.927Z",
+          "classId": "class-1",
+          "studentCode": "HS008",
+          "id": "student-1784686515928-7m0vbol",
+          "name": "Nguyễn Hoài Bảo",
+          "teacherId": "teacher-default"
+        }
+      ],
+      "classCode": "TH3A99",
+      "id": "class-1",
+      "name": "Lớp 3A - Tin học Tiểu học"
+    },
+    {
+      "teacherId": "teacher-default",
+      "students": [
+        {
+          "classId": "class-2",
+          "studentCode": "HS4B01",
+          "id": "student-4",
+          "name": "Phạm Hồng Đăng"
+        },
+        {
+          "name": "Đỗ Gia Huy",
+          "studentCode": "HS4B02",
+          "id": "student-5",
+          "classId": "class-2"
+        }
+      ],
+      "classCode": "TH4B88",
+      "id": "class-2",
+      "name": "Lớp 4B - Lập trình Scratch"
+    },
+    {
+      "name": "Lớp 5C - Lắp ráp Robot",
+      "id": "class-3",
+      "classCode": "TH5C77",
+      "students": [
+        {
+          "name": "Vũ Khánh Linh",
+          "studentCode": "HS5C01",
+          "id": "student-6",
+          "classId": "class-3"
+        },
+        {
+          "name": "Hoàng Minh Nam",
+          "studentCode": "HS5C02",
+          "id": "student-7",
+          "classId": "class-3"
+        }
+      ],
+      "teacherId": "teacher-default"
+    },
+    {
+      "students": [
+        {
+          "id": "student-1784700503327-1j6zt",
+          "studentCode": "5A101",
+          "name": "Lâm Thạch Na Nu",
+          "classId": "class-1784693986649"
+        },
+        {
+          "studentCode": "5A102",
+          "id": "student-1784700503327-vygio",
+          "name": "Huỳnh Trọng Phúc",
+          "classId": "class-1784693986649"
+        },
+        {
+          "classId": "class-1784693986649",
+          "id": "student-1784700503327-0ut9k",
+          "studentCode": "5A103",
+          "name": "Lâm Tấn Phúc"
+        },
+        {
+          "name": "Lê Trọng Phúc",
+          "id": "student-1784700503327-93f33",
+          "studentCode": "5A104",
+          "classId": "class-1784693986649"
+        },
+        {
+          "classId": "class-1784693986649",
+          "name": "Nguyễn Phạm Mỹ Phương",
+          "studentCode": "5A105",
+          "id": "student-1784700503327-lw4oy"
+        },
+        {
+          "id": "student-1784700503327-sykeu",
+          "studentCode": "5A106",
+          "name": "Nguyễn Trần Anh Quân",
+          "classId": "class-1784693986649"
+        },
+        {
+          "classId": "class-1784693986649",
+          "name": "Nguyễn Phú Quý",
+          "studentCode": "5A107",
+          "id": "student-1784700503327-27j0h"
+        },
+        {
+          "classId": "class-1784693986649",
+          "name": "Nguyễn Thị Phương Quỳnh",
+          "id": "student-1784700503327-v11eu",
+          "studentCode": "5A108"
+        }
+      ],
+      "classCode": "FIJY22",
+      "teacherId": "teacher-default",
+      "name": "Lớp 5A1",
+      "id": "class-1784693986649"
+    },
+    {
+      "teacherId": "4Ww3k5Gcq3bTe1OPHzS4gqXEuo22",
+      "classCode": "4SMWMR",
+      "students": [
+        {
+          "classId": "class-1784699609173",
+          "id": "student-1784700459533-5uy21",
+          "studentCode": "4A101",
+          "name": "Nguyễn Văn Gia Huy"
+        },
+        {
+          "classId": "class-1784699609173",
+          "name": "Thạch Khánh Hưng",
+          "id": "student-1784700459533-0n9l4",
+          "studentCode": "4A102"
+        },
+        {
+          "name": "Phạm Thị Diễm Hương",
+          "id": "student-1784700459533-aat1i",
+          "studentCode": "4A103",
+          "classId": "class-1784699609173"
+        },
+        {
+          "classId": "class-1784699609173",
+          "name": "Ngô Quốc Khanh",
+          "id": "student-1784700459533-svfyn",
+          "studentCode": "4A104"
+        },
+        {
+          "classId": "class-1784699609173",
+          "name": "Nguyễn Võ Như Ngọc",
+          "id": "student-1784700459533-znagn",
+          "studentCode": "4A105"
+        },
+        {
+          "classId": "class-1784699609173",
+          "name": "Thạch Thị Mỹ Nhiên",
+          "studentCode": "4A106",
+          "id": "student-1784700459533-v3r1k"
+        },
+        {
+          "classId": "class-1784699609173",
+          "id": "student-1784700459533-yfjkf",
+          "studentCode": "4A107",
+          "name": "Trương Thị Cẩm Nhung"
+        }
+      ],
+      "id": "class-1784699609173",
+      "name": "Lớp 4A1"
+    },
+    {
+      "students": [
+        {
+          "name": "Danh Hữu Bằng",
+          "studentCode": "3A101",
+          "id": "student-1784700361128-ehknm",
+          "classId": "class-1784700243581"
+        },
+        {
+          "studentCode": "3A102",
+          "id": "student-1784700361128-86l02",
+          "name": "Nguyễn Thạch Kỳ Duyên",
+          "classId": "class-1784700243581"
+        },
+        {
+          "classId": "class-1784700243581",
+          "name": "Sơn Thái Hào",
+          "id": "student-1784700361128-ob66b",
+          "studentCode": "3A103"
+        },
+        {
+          "studentCode": "3A104",
+          "id": "student-1784700361128-qy420",
+          "name": "Thạch Gia Hân",
+          "classId": "class-1784700243581"
+        }
+      ],
+      "classCode": "A7QVAO",
+      "teacherId": "4Ww3k5Gcq3bTe1OPHzS4gqXEuo22",
+      "name": "Lớp 3A1",
+      "id": "class-1784700243581"
+    }
+  ],
+  "exams": [
+    {
+      "teacherId": "teacher-default",
+      "duration": 15,
+      "questions": [
+        {
+          "question": "Bộ phận nào của máy tính dùng để gõ chữ và số vào màn hình?",
+          "explanation": "Bàn phím chứa các phím chữ và số, khi gõ sẽ truyền thông tin hiển thị lên màn hình.",
+          "correctAnswer": "A",
+          "id": "q-1-1",
+          "keyPoint": "Bàn phím là thiết bị nhập dữ liệu dạng ký tự.",
+          "difficulty": "Nhận biết",
+          "options": [
+            "Bàn phím (Keyboard)",
+            "Chuột máy tính (Mouse)",
+            "Màn hình (Monitor)",
+            "Thân máy (CPU Case)"
+          ]
+        },
+        {
+          "options": [
+            "Nằm ra bàn để nhìn cho rõ",
+            "Ngồi thẳng lưng, mắt cách màn hình từ 50-80 cm",
+            "Ngồi ghé sát mắt vào màn hình",
+            "Ngồi cong lưng, cúi đầu sát bàn phím"
+          ],
+          "difficulty": "Thông hiểu",
+          "keyPoint": "Luôn ngồi thẳng lưng và giữ khoảng cách 50-80cm với màn hình.",
+          "id": "q-1-2",
+          "correctAnswer": "B",
+          "explanation": "Tư thế ngồi thẳng lưng và giữ khoảng cách an toàn giúp tránh cận thị và đau lưng.",
+          "question": "Khi làm việc với máy tính, tư thế ngồi nào là đúng để bảo vệ mắt và cột sống?"
+        }
+      ],
+      "grade": "Lớp 3",
+      "title": "Đề kiểm tra Tin học Lớp 3: Làm quen với máy tính",
+      "id": "exam-1",
+      "createdAt": "2026-07-22T01:44:29.530Z",
+      "topic": "Các bộ phận của máy tính"
+    },
+    {
+      "title": "Cùng Bé Khám Phá Thế Giới Ứng Dụng Tin Học Lớp 3",
+      "teacherId": "teacher-default",
+      "questions": [
+        {
+          "difficulty": "Nhận biết",
+          "options": [
+            "A. PowerPoint (Trình chiếu)",
+            "B. Word (Soạn thảo văn bản)",
+            "C. Paint (Tập vẽ)",
+            "D. Windows Explorer"
+          ],
+          "explanation": "Chào các con! Phần mềm Paint chính là một 'hộp bút màu thần kỳ' trên máy tính, giúp các con thỏa sức sáng tạo, vẽ và tô màu những bức tranh thật đẹp đấy!",
+          "question": "Phần mềm nào dưới đây giúp các em tự do vẽ và tô màu những bức tranh thật sinh động trên máy tính?",
+          "correctAnswer": "C",
+          "id": "q-ai-1784684840821-0",
+          "keyPoint": "Phần mềm Paint được dùng để vẽ và tô màu trên máy tính."
+        },
+        {
+          "correctAnswer": "A",
+          "explanation": "Để đôi bàn tay lướt thật nhanh trên bàn phím như những nghệ sĩ piano, phần mềm RapidTyping với các trò chơi bổ ích sẽ là người bạn đồng hành tuyệt vời giúp các con luyện tập hàng ngày.",
+          "question": "Để luyện tập gõ bàn phím bằng cả 10 ngón tay nhanh và đúng cách, chúng mình nên sử dụng phần mềm nào?",
+          "keyPoint": "Phần mềm RapidTyping giúp luyện gõ bàn phím bằng 10 ngón tay.",
+          "id": "q-ai-1784684840821-1",
+          "options": [
+            "A. RapidTyping",
+            "B. Paint",
+            "C. Windows Media Player",
+            "D. Calculator (Máy tính)"
+          ],
+          "difficulty": "Nhận biết"
+        },
+        {
+          "difficulty": "Thông hiểu",
+          "options": [
+            "A. Phần mềm vẽ Paint",
+            "B. Phần mềm soạn thảo văn bản Word",
+            "C. Phần mềm luyện gõ bàn phím",
+            "D. Phần mềm máy tính bỏ túi Calculator"
+          ],
+          "question": "Khi muốn tự tay gõ một bức thư chúc mừng sinh nhật gửi tặng bố mẹ, em nên mở phần mềm nào trên máy tính?",
+          "explanation": "Khi muốn viết chữ, gõ chữ hay trình bày một bức thư, một đoạn văn thật ngay ngắn, phần mềm soạn thảo văn bản Word chính là lựa chọn chuẩn xác nhất đấy các con ạ!",
+          "correctAnswer": "B",
+          "id": "q-ai-1784684840821-2",
+          "keyPoint": "Phần mềm Word dùng để soạn thảo và trình bày văn bản."
+        },
+        {
+          "options": [
+            "A. Công cụ hình bút chì (Pencil)",
+            "B. Công cụ đổ màu (Fill with color)",
+            "C. Công cụ tẩy (Eraser)",
+            "D. Công cụ kính lúp (Magnifier)"
+          ],
+          "difficulty": "Thông hiểu",
+          "correctAnswer": "C",
+          "explanation": "Cũng giống như khi vẽ trên giấy, nếu vẽ sai chúng mình cần dùng tẩy đúng không nào? Trong phần mềm Paint, công cụ Tẩy (Eraser) sẽ giúp các con xóa đi những nét vẽ chưa ưng ý một cách dễ dàng.",
+          "question": "Trong lúc tập vẽ bằng phần mềm Paint, bạn Lan lỡ tay vẽ lệch một nét. Lan nên dùng công cụ nào trong bảng công cụ để xóa nét vẽ sai đó?",
+          "keyPoint": "Sử dụng công cụ Eraser (Tẩy) trong Paint để xóa các chi tiết thừa hoặc vẽ sai.",
+          "id": "q-ai-1784684840821-3"
+        },
+        {
+          "difficulty": "Vận dụng",
+          "options": [
+            "A. Chỉ cần sử dụng phần mềm máy tính bỏ túi Calculator",
+            "B. Kết hợp phần mềm vẽ Paint để vẽ hoa đào và phần mềm Word để gõ lời chúc",
+            "C. Chỉ cần sử dụng phần mềm luyện gõ RapidTyping",
+            "D. Kết hợp phần mềm xem video và phần mềm nghe nhạc"
+          ],
+          "explanation": "Để tạo ra một tấm thiệp hoàn hảo vừa có hình vẽ đẹp vừa có lời chúc ý nghĩa, việc kết hợp vẽ tranh bằng Paint và gõ lời chúc bằng Word là một giải pháp vô cùng thông minh và sáng tạo của học sinh lớp 3 đấy!",
+          "question": "Bạn Minh muốn tự làm một tấm thiệp chúc mừng năm mới gồm: một bức tranh hoa đào do tự tay Minh vẽ và một dòng chữ chúc mừng năm mới được gõ thật đẹp. Minh nên kết hợp những phần mềm nào để hoàn thành?",
+          "correctAnswer": "B",
+          "id": "q-ai-1784684840821-4",
+          "keyPoint": "Biết cách kết hợp các phần mềm ứng dụng khác nhau để tạo ra một sản phẩm học tập hoàn chỉnh."
+        }
+      ],
+      "duration": 15,
+      "grade": "Lớp 3",
+      "createdAt": "2026-07-22T01:47:48.624Z",
+      "topic": "ứng dụng tin học",
+      "id": "exam-1784684868624"
+    },
+    {
+      "topic": "máy tính và internet",
+      "createdAt": "2026-07-22T02:32:40.686Z",
+      "id": "exam-1784687560686",
+      "title": "Bé tập làm quen với Máy tính và Internet Lớp 3",
+      "questions": [
+        {
+          "keyPoint": "Màn hình là thiết bị đầu ra giúp hiển thị thông tin dạng hình ảnh và chữ viết.",
+          "id": "q-ai-1784687555548-0",
+          "correctAnswer": "C",
+          "question": "Bộ phận nào của máy tính giúp em nhìn thấy các hình ảnh, video hoạt hình hay bài học siêu sinh động?",
+          "explanation": "Màn hình giống như một chiếc tivi nhỏ giúp chúng mình nhìn thấy mọi hình ảnh, chữ viết và video sinh động đấy các em ạ!",
+          "options": [
+            "A. Bàn phím",
+            "B. Chuột máy tính",
+            "C. Màn hình",
+            "D. Thân máy"
+          ],
+          "difficulty": "Nhận biết"
+        },
+        {
+          "explanation": "Internet là một thế giới thông tin rộng lớn, giúp chúng mình học được nhiều điều hay và bổ ích, nhưng các em nhớ không nên chơi game quá nhiều nhé!",
+          "question": "Internet giống như một kho báu thông tin khổng lồ. Em có thể dùng Internet để làm việc gì bổ ích nhất dưới đây?",
+          "correctAnswer": "A",
+          "id": "q-ai-1784687555548-1",
+          "keyPoint": "Internet phục vụ cho việc học tập, giải trí lành mạnh và tìm kiếm kiến thức.",
+          "difficulty": "Nhận biết",
+          "options": [
+            "A. Xem các video học tập và tìm kiếm thông tin bổ ích",
+            "B. Chơi trò chơi điện tử suốt cả ngày không nghỉ",
+            "C. Tự ý tải các phần mềm lạ về máy tính",
+            "D. Chia sẻ thông tin cá nhân của mình cho người lạ"
+          ]
+        },
+        {
+          "id": "q-ai-1784687555548-2",
+          "keyPoint": "Ngồi đúng tư thế khi sử dụng máy tính giúp bảo vệ mắt và cột sống.",
+          "question": "Khi ngồi học với máy tính, tư thế nào dưới đây là đúng nhất để bảo vệ mắt và cột sống của em?",
+          "explanation": "Ngồi thẳng lưng và giữ khoảng cách vừa phải với màn hình sẽ giúp đôi mắt của em luôn sáng khỏe và lưng không bị cong vẹo đấy!",
+          "correctAnswer": "B",
+          "difficulty": "Thông hiểu",
+          "options": [
+            "A. Nằm ra bàn hoặc ghé sát mắt vào màn hình cho rõ",
+            "B. Ngồi thẳng lưng, mắt cách màn hình khoảng một sải tay (50-80 cm)",
+            "C. Ngồi vẹo sang một bên và để màn hình sát mặt",
+            "D. Ghé sát tai vào loa máy tính để nghe cho rõ"
+          ]
+        },
+        {
+          "keyPoint": "Không tự ý chia sẻ thông tin cá nhân trên Internet khi chưa có sự đồng ý của người lớn.",
+          "id": "q-ai-1784687555548-3",
+          "correctAnswer": "C",
+          "question": "Khi đang sử dụng Internet, một trang web lạ yêu cầu em nhập họ tên, địa chỉ nhà và số điện thoại của bố mẹ. Em nên làm gì?",
+          "explanation": "Thông tin cá nhân rất quan trọng, các em tuyệt đối không được tự ý cung cấp cho người lạ trên mạng để tránh những nguy hiểm không đáng có nhé!",
+          "options": [
+            "A. Nhập ngay thông tin để nhận quà tặng",
+            "B. Tự nghĩ ra một địa chỉ giả để điền vào",
+            "C. Tắt trang web đó đi và hỏi ý kiến của bố mẹ hoặc thầy cô giáo",
+            "D. Rủ bạn cùng lớp nhập thông tin chung"
+          ],
+          "difficulty": "Thông hiểu"
+        },
+        {
+          "options": [
+            "A. Tự ý tháo tung cục phát Wifi ra để sửa chữa",
+            "B. Dùng kéo cắt dây mạng để nối lại xem sao",
+            "C. Báo ngay cho bố mẹ hoặc thầy cô giáo nhờ kiểm tra kết nối mạng",
+            "D. Khóc nhè và không học bài nữa"
+          ],
+          "difficulty": "Vận dụng",
+          "correctAnswer": "C",
+          "question": "Máy tính của bạn An đang học online bỗng nhiên bị mất kết nối Internet. An nên làm việc nào trước tiên để xử lý an toàn nhất?",
+          "explanation": "Khi gặp các sự cố về máy tính hoặc mạng Internet, các em còn nhỏ nên hãy nhờ người lớn như bố mẹ hay thầy cô giúp đỡ để đảm bảo an toàn về điện nhé!",
+          "keyPoint": "Khi gặp sự cố máy tính, cần nhờ người lớn hỗ trợ thay vì tự ý sửa chữa gây mất an toàn điện.",
+          "id": "q-ai-1784687555548-4"
+        }
+      ],
+      "grade": "Lớp 3",
+      "duration": 15,
+      "teacherId": "teacher-default"
+    },
+    {
+      "id": "exam-1784701531896",
+      "topic": "Soạn thảo văn bản",
+      "createdAt": "2026-07-22T06:25:31.896Z",
+      "questions": [
+        {
+          "options": [
+            "Truowngf",
+            "Truongf",
+            "Truowngs",
+            "Truowngr"
+          ],
+          "difficulty": "Nhận biết",
+          "keyPoint": "Quy tắc gõ chữ cái tiếng Việt và dấu thanh theo kiểu gõ Telex",
+          "id": "q-ai-1784701525235-0",
+          "correctAnswer": "A",
+          "question": "Để gõ từ 'Trường' theo kiểu gõ Telex, em cần gõ các ký tự nào trên bàn phím?",
+          "explanation": "Trong kiểu gõ Telex, để có chữ 'ư' em gõ 'uw', chữ 'ơ' em gõ 'ow', và dấu huyền em gõ chữ 'f'. Do đó gõ 'Truowngf' sẽ cho kết quả là 'Trường' đấy!"
+        },
+        {
+          "keyPoint": "Chức năng của phím Enter trong soạn thảo văn bản",
+          "id": "q-ai-1784701525235-1",
+          "correctAnswer": "B",
+          "question": "Khi đang soạn thảo văn bản, phím nào giúp em xuống dòng để bắt đầu một đoạn mới?",
+          "explanation": "Mỗi khi gõ xong một câu hoặc muốn xuống dòng mới, em chỉ cần nhấn phím Enter trên bàn phím là con trỏ soạn thảo sẽ tự động chuyển xuống dòng tiếp theo.",
+          "options": [
+            "Phím Space (Dấu cách)",
+            "Phím Enter",
+            "Phím Caps Lock",
+            "Phím Shift"
+          ],
+          "difficulty": "Nhận biết"
+        },
+        {
+          "options": [
+            "Đổi font chữ và chọn nút I (In nghiêng)",
+            "Tăng cỡ chữ và chọn nút B (In đậm)",
+            "Chọn nút U (Gạch chân) và căn lề trái",
+            "Đổi màu chữ và căn lề phải"
+          ],
+          "difficulty": "Thông hiểu",
+          "correctAnswer": "B",
+          "explanation": "Để chữ to hơn, em chọn tăng cỡ chữ (Font Size). Để chữ in đậm nổi bật, em chọn nút B (Bold). Kết hợp cả hai nút lệnh này sẽ giúp tiêu đề cực kỳ đẹp mắt!",
+          "question": "Bạn Nam muốn tiêu đề bài thơ của mình vừa to hơn vừa in đậm nổi bật. Nam nên dùng những nút lệnh nào?",
+          "keyPoint": "Cách thay đổi cỡ chữ và định dạng chữ in đậm",
+          "id": "q-ai-1784701525235-2"
+        },
+        {
+          "options": [
+            "Thẻ Home",
+            "Thẻ Insert",
+            "Thẻ View",
+            "Thẻ Layout"
+          ],
+          "difficulty": "Thông hiểu",
+          "correctAnswer": "B",
+          "question": "Để chèn một bức ảnh xinh xắn vào bài viết, em cần chọn thẻ nào trên thanh công cụ của phần mềm Word?",
+          "explanation": "Từ 'Insert' trong tiếng Anh có nghĩa là 'chèn' hoặc 'thêm vào'. Vì vậy, muốn chèn hình ảnh, bảng biểu hay hình vẽ, em hãy nhớ vào thẻ Insert nhé!",
+          "keyPoint": "Sử dụng thẻ Insert để chèn hình ảnh vào văn bản",
+          "id": "q-ai-1784701525235-3"
+        },
+        {
+          "difficulty": "Vận dụng",
+          "options": [
+            "Align Left (Căn trái)",
+            "Center (Căn giữa)",
+            "Align Right (Căn phải)",
+            "Justify (Căn đều hai bên)"
+          ],
+          "explanation": "Nút lệnh Justify (Căn đều hai bên) sẽ điều chỉnh khoảng cách giữa các từ sao cho cả lề trái và lề phải của đoạn văn đều thẳng tắp, giúp bài làm trông thật gọn gàng và chuyên nghiệp!",
+          "question": "Đoạn văn của em đang bị lệch lề, trông chưa được đẹp mắt. Em hãy chọn nút lệnh nào để đoạn văn được căn thẳng đều cả hai bên lề?",
+          "correctAnswer": "D",
+          "id": "q-ai-1784701525235-4",
+          "keyPoint": "Sử dụng nút lệnh Justify để căn đều hai bên đoạn văn bản"
+        }
+      ],
+      "grade": "Lớp 4",
+      "duration": 15,
+      "teacherId": "teacher-default",
+      "title": "Em là Chuyên gia Soạn thảo văn bản - Tin học Lớp 4"
+    }
+  ],
+  "assignments": [
+    {
+      "teacherId": "teacher-default",
+      "startTime": "2026-07-22T01:48:00.000Z",
+      "examId": "exam-1784684868624",
+      "id": "assign-1784684876842",
+      "status": "Đang diễn ra",
+      "classId": "class-1",
+      "endTime": "2026-07-23T01:48:00.000Z",
+      "createdAt": "2026-07-22T01:47:56.842Z"
+    },
+    {
+      "startTime": "2026-07-22T06:22:00.000Z",
+      "teacherId": "teacher-default",
+      "endTime": "2026-07-23T06:22:00.000Z",
+      "createdAt": "2026-07-22T06:22:18.027Z",
+      "status": "Đang diễn ra",
+      "classId": "class-1784700243581",
+      "id": "assign-1784701338027",
+      "examId": "exam-1784687560686"
+    },
+    {
+      "id": "assign-1784701553241",
+      "examId": "exam-1784701531896",
+      "createdAt": "2026-07-22T06:25:53.241Z",
+      "endTime": "2026-07-23T06:26:00.000Z",
+      "classId": "class-1784699609173",
+      "status": "Đang diễn ra",
+      "startTime": "2026-07-22T06:26:00.000Z",
+      "teacherId": "teacher-default"
+    },
+    {
+      "teacherId": "teacher-default",
+      "startTime": "2026-07-22T06:31:00.000Z",
+      "id": "assign-1784701888821",
+      "examId": "exam-1784701531896",
+      "createdAt": "2026-07-22T06:31:28.821Z",
+      "endTime": "2026-07-23T06:31:00.000Z",
+      "status": "Đang diễn ra",
+      "classId": "class-1784699609173"
+    }
+  ],
+  "submissions": [
+    {
+      "studentId": "student-1",
+      "startedAt": "2026-07-22T01:48:16.265Z",
+      "id": "sub-1784684896265",
+      "correctCount": 2,
+      "score": 4,
+      "submittedAt": "2026-07-22T01:48:32.556Z",
+      "assignmentId": "assign-1784684876842",
+      "classId": "class-1",
+      "status": "submitted",
+      "wrongCount": 3,
+      "duration": 16,
+      "answers": {
+        "q-ai-1784684840821-3": "B",
+        "q-ai-1784684840821-0": "C",
+        "q-ai-1784684840821-2": "D",
+        "q-ai-1784684840821-4": "C",
+        "q-ai-1784684840821-1": "A"
+      },
+      "examId": "exam-1784684868624"
+    },
+    {
+      "totalQuestions": 5,
+      "assignmentId": "assign-1784684876842",
+      "submittedAt": "2026-07-22T05:54:03.275Z",
+      "score": 2,
+      "correctCount": 1,
+      "id": "sub-1784699643275",
+      "details": [
+        {
+          "questionId": "q-ai-1784684840821-0",
+          "studentAnswer": "A",
+          "isCorrect": false,
+          "correctAnswer": "C"
+        },
+        {
+          "questionId": "q-ai-1784684840821-1",
+          "studentAnswer": "B",
+          "isCorrect": false,
+          "correctAnswer": "A"
+        },
+        {
+          "questionId": "q-ai-1784684840821-2",
+          "studentAnswer": "B",
+          "isCorrect": true,
+          "correctAnswer": "B"
+        },
+        {
+          "isCorrect": false,
+          "correctAnswer": "C",
+          "questionId": "q-ai-1784684840821-3",
+          "studentAnswer": "D"
+        },
+        {
+          "correctAnswer": "B",
+          "isCorrect": false,
+          "questionId": "q-ai-1784684840821-4",
+          "studentAnswer": ""
+        }
+      ],
+      "examId": "exam-1784684868624",
+      "answers": {
+        "q-ai-1784684840821-2": "B",
+        "q-ai-1784684840821-0": "A",
+        "q-ai-1784684840821-1": "B",
+        "q-ai-1784684840821-3": "D"
+      },
+      "duration": 12,
+      "studentId": "student-1784686515928-n2gx4cl"
+    },
+    {
+      "totalQuestions": 5,
+      "assignmentId": "assign-1784701338027",
+      "submittedAt": "2026-07-22T06:23:04.590Z",
+      "score": 6,
+      "correctCount": 3,
+      "id": "sub-1784701384590",
+      "details": [
+        {
+          "studentAnswer": "C",
+          "questionId": "q-ai-1784687555548-0",
+          "correctAnswer": "C",
+          "isCorrect": true
+        },
+        {
+          "correctAnswer": "A",
+          "isCorrect": true,
+          "studentAnswer": "A",
+          "questionId": "q-ai-1784687555548-1"
+        },
+        {
+          "studentAnswer": "B",
+          "questionId": "q-ai-1784687555548-2",
+          "correctAnswer": "B",
+          "isCorrect": true
+        },
+        {
+          "studentAnswer": "D",
+          "questionId": "q-ai-1784687555548-3",
+          "correctAnswer": "C",
+          "isCorrect": false
+        },
+        {
+          "correctAnswer": "C",
+          "isCorrect": false,
+          "questionId": "q-ai-1784687555548-4",
+          "studentAnswer": "B"
+        }
+      ],
+      "examId": "exam-1784687560686",
+      "answers": {
+        "q-ai-1784687555548-3": "D",
+        "q-ai-1784687555548-2": "B",
+        "q-ai-1784687555548-0": "C",
+        "q-ai-1784687555548-1": "A",
+        "q-ai-1784687555548-4": "B"
+      },
+      "duration": 20,
+      "studentId": "student-1784700361128-86l02"
+    },
+    {
+      "startedAt": "2026-07-22T06:26:14.508Z",
+      "id": "sub-1784701574508",
+      "studentId": "student-1784700459533-0n9l4",
+      "assignmentId": "assign-1784701553241",
+      "status": "submitted",
+      "classId": "class-1784699609173",
+      "wrongCount": 4,
+      "correctCount": 1,
+      "score": 2,
+      "submittedAt": "2026-07-22T06:26:28.068Z",
+      "answers": {
+        "q-ai-1784701525235-1": "C",
+        "q-ai-1784701525235-0": "A",
+        "q-ai-1784701525235-2": "C",
+        "q-ai-1784701525235-3": "D"
+      },
+      "examId": "exam-1784701531896",
+      "duration": 13
+    },
+    {
+      "assignmentId": "assign-1784701888821",
+      "totalQuestions": 5,
+      "correctCount": 5,
+      "score": 10,
+      "submittedAt": "2026-07-22T06:31:58.465Z",
+      "answers": {
+        "q-ai-1784701525235-1": "B",
+        "q-ai-1784701525235-4": "D",
+        "q-ai-1784701525235-3": "B",
+        "q-ai-1784701525235-2": "B",
+        "q-ai-1784701525235-0": "A"
+      },
+      "details": [
+        {
+          "studentAnswer": "A",
+          "questionId": "q-ai-1784701525235-0",
+          "correctAnswer": "A",
+          "isCorrect": true
+        },
+        {
+          "correctAnswer": "B",
+          "isCorrect": true,
+          "studentAnswer": "B",
+          "questionId": "q-ai-1784701525235-1"
+        },
+        {
+          "studentAnswer": "B",
+          "questionId": "q-ai-1784701525235-2",
+          "correctAnswer": "B",
+          "isCorrect": true
+        },
+        {
+          "questionId": "q-ai-1784701525235-3",
+          "studentAnswer": "B",
+          "correctAnswer": "B",
+          "isCorrect": true
+        },
+        {
+          "correctAnswer": "D",
+          "isCorrect": true,
+          "studentAnswer": "D",
+          "questionId": "q-ai-1784701525235-4"
+        }
+      ],
+      "examId": "exam-1784701531896",
+      "id": "sub-1784701918465",
+      "studentId": "student-1784700459533-0n9l4",
+      "duration": 16
+    }
+  ]
+}

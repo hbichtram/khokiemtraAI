@@ -66,6 +66,21 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
     }
   }, [viewState]);
 
+  const safeFormatDate = (dateVal: any) => {
+    if (!dateVal) return "Vừa xong";
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return "Vừa xong";
+      return d.toLocaleDateString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+      });
+    } catch (e) {
+      return "Vừa xong";
+    }
+  };
+
   const fetchDashboardFromFirestore = async () => {
     const snap = await getDoc(doc(firestoreDb, "appData", "main"));
     if (!snap.exists()) {
@@ -94,22 +109,45 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
       const exam = exams.find((e: any) => e.id === asg.examId);
       const sub = submissions.find((s: any) => s.assignmentId === asg.id && (s.studentId === user.id || (user.studentCode && s.studentCode === user.studentCode)));
 
-      const item = {
+      const isSubmitted = sub && (sub.status === "submitted" || !sub.status);
+
+      const now = new Date();
+      const start = new Date(asg.startTime);
+      const end = new Date(asg.endTime);
+      const isTimeValid = now >= start && now <= end;
+      let currentStatus = asg.status || "Đang diễn ra";
+      if (isTimeValid && currentStatus !== "Đang diễn ra") {
+        currentStatus = "Đang diễn ra";
+      }
+
+      const info = {
         assignmentId: asg.id,
         examId: asg.examId,
-        examTitle: exam?.title || "Bài kiểm tra",
-        examDuration: exam?.duration || 15,
-        totalQuestions: exam?.questions?.length || 0,
+        title: exam?.title || "Bài kiểm tra",
+        grade: exam?.grade || "Tin học",
+        topic: exam?.topic || "Tin học",
+        duration: exam?.duration || 15,
         startTime: asg.startTime,
         endTime: asg.endTime,
-        status: asg.status || "Đang diễn ra",
-        submission: sub || null
+        status: currentStatus,
+        questionsCount: exam?.questions?.length || 0,
+        classId: asg.classId
       };
 
-      if (sub) {
-        completed.push(item);
+      if (sub && isSubmitted) {
+        completed.push({
+          ...info,
+          submissionId: sub.id,
+          score: typeof sub.score === "number" ? sub.score : 0,
+          correctCount: sub.correctCount ?? 0,
+          wrongCount: sub.wrongCount ?? 0,
+          submittedAt: sub.submittedAt || new Date().toISOString()
+        });
       } else {
-        active.push(item);
+        active.push({
+          ...info,
+          submissionStatus: sub?.status || "not_started"
+        });
       }
     }
 
@@ -389,18 +427,24 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                 </div>
               ) : (
                 <div className="space-y-4 animate-fadeIn">
-                  {completedAssignments.map((sub) => {
-                    const isExcellent = sub.score >= 8;
-                    const isGood = sub.score >= 5 && sub.score < 8;
+                  {completedAssignments.map((sub, idx) => {
+                    const scoreVal = typeof sub.score === "number" ? sub.score : (sub.submission?.score ?? 0);
+                    const isExcellent = scoreVal >= 8;
+                    const isGood = scoreVal >= 5 && scoreVal < 8;
+                    const subId = sub.submissionId || sub.submission?.id || sub.id;
+                    const titleVal = sub.title || sub.examTitle || sub.submission?.title || "Bài kiểm tra";
+                    const dateVal = sub.submittedAt || sub.submission?.submittedAt;
+                    const formattedDate = safeFormatDate(dateVal);
+
                     return (
                       <div
-                        key={sub.submissionId}
+                        key={subId || `sub-item-${idx}`}
                         className="border border-slate-100 p-4 rounded-[20px] space-y-4 hover:bg-slate-50/50 transition-colors bg-white shadow-xs"
                       >
                         <div className="flex items-start justify-between gap-3 text-xs">
                           <div className="space-y-1 overflow-hidden">
-                            <h4 className="font-black text-slate-900 truncate block text-sm">{sub.title}</h4>
-                            <span className="text-[10px] font-bold text-slate-400 block">Nộp bài: {new Date(sub.submittedAt).toLocaleDateString("vi-VN")}</span>
+                            <h4 className="font-black text-slate-900 truncate block text-sm">{titleVal}</h4>
+                            <span className="text-[10px] font-bold text-slate-400 block">Nộp bài: {formattedDate}</span>
                           </div>
                           <span className={`font-black text-sm px-3 py-1.5 rounded-xl shrink-0 border ${
                             isExcellent
@@ -409,13 +453,13 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                               ? "text-indigo-700 bg-indigo-50 border-indigo-100"
                               : "text-rose-700 bg-rose-50 border-rose-100"
                           }`}>
-                            {sub.score} điểm
+                            {scoreVal} điểm
                           </span>
                         </div>
 
                         <button
-                          id={`btn-view-review-${sub.submissionId}`}
-                          onClick={() => handleViewReview(sub.submissionId)}
+                          id={`btn-view-review-${subId || idx}`}
+                          onClick={() => subId && handleViewReview(subId)}
                           className="w-full text-center border border-indigo-100 bg-indigo-50/50 hover:bg-indigo-600 hover:text-white text-indigo-700 font-black py-3 rounded-2xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
                         >
                           <Eye className="w-4 h-4" />
