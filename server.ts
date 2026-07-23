@@ -764,13 +764,13 @@ app.delete("/api/exams/:id", (req, res) => {
 // Retry wrapper to handle transient Gemini API errors (like 503, 429, 404)
 async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayMs = 1000) {
   let attempt = 0;
-  const originalModel = options.model || "gemini-3.5-flash";
+  const originalModel = options.model || "gemini-3.6-flash";
   const aiClient = getGeminiClient();
   if (!aiClient) {
     throw new Error("Chưa cấu hình khóa API GEMINI_API_KEY trên môi trường. Vui lòng kiểm tra Environment Variables.");
   }
 
-  const modelOrder = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"];
+  const modelOrder = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash"];
 
   while (attempt < maxRetries) {
     try {
@@ -819,6 +819,65 @@ function normalizeCorrectAnswer(val: string): string {
   return "A";
 }
 
+function extractOptionsList(rawOptions: any): string[] {
+  if (Array.isArray(rawOptions)) {
+    const cleanList = rawOptions.map((opt: any) => cleanOptionText(String(opt || "")));
+    while (cleanList.length < 4) {
+      cleanList.push(`Lựa chọn ${String.fromCharCode(65 + cleanList.length)}`);
+    }
+    return cleanList.slice(0, 4);
+  }
+  if (rawOptions && typeof rawOptions === "object") {
+    const a = rawOptions.A || rawOptions.a || rawOptions["0"] || rawOptions["1"] || "";
+    const b = rawOptions.B || rawOptions.b || rawOptions["1"] || rawOptions["2"] || "";
+    const c = rawOptions.C || rawOptions.c || rawOptions["2"] || rawOptions["3"] || "";
+    const d = rawOptions.D || rawOptions.d || rawOptions["3"] || rawOptions["4"] || "";
+    const cleanList = [cleanOptionText(String(a)), cleanOptionText(String(b)), cleanOptionText(String(c)), cleanOptionText(String(d))];
+    for (let i = 0; i < 4; i++) {
+      if (!cleanList[i]) {
+        cleanList[i] = `Lựa chọn ${String.fromCharCode(65 + i)}`;
+      }
+    }
+    return cleanList;
+  }
+  if (typeof rawOptions === "string") {
+    const lines = rawOptions.split("\n").map(l => l.trim()).filter(Boolean);
+    const cleanList = lines.map(l => cleanOptionText(l));
+    while (cleanList.length < 4) {
+      cleanList.push(`Lựa chọn ${String.fromCharCode(65 + cleanList.length)}`);
+    }
+    return cleanList.slice(0, 4);
+  }
+  return ["Lựa chọn A", "Lựa chọn B", "Lựa chọn C", "Lựa chọn D"];
+}
+
+function parseAIResponseJSON(rawText: string): any {
+  if (!rawText) throw new Error("Dữ liệu phản hồi từ AI rỗng.");
+  let cleanText = rawText.trim();
+  if (cleanText.includes("```")) {
+    cleanText = cleanText.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
+  }
+  try {
+    return JSON.parse(cleanText);
+  } catch (e: any) {
+    const startObj = cleanText.indexOf("{");
+    const endObj = cleanText.lastIndexOf("}");
+    if (startObj !== -1 && endObj !== -1 && endObj > startObj) {
+      try {
+        return JSON.parse(cleanText.substring(startObj, endObj + 1));
+      } catch (e2) {}
+    }
+    const startArr = cleanText.indexOf("[");
+    const endArr = cleanText.lastIndexOf("]");
+    if (startArr !== -1 && endArr !== -1 && endArr > startArr) {
+      try {
+        return JSON.parse(cleanText.substring(startArr, endArr + 1));
+      } catch (e3) {}
+    }
+    throw new Error(`Không thể phân tích dữ liệu JSON từ AI: ${e.message}`);
+  }
+}
+
 app.post("/api/exams/generate", async (req, res) => {
   const { grade, topic, content, quantity } = req.body;
 
@@ -861,7 +920,7 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
 
   try {
     const response = await generateContentWithRetry({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -894,37 +953,32 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
     });
 
     const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) {
-      throw new Error("Không nhận được dữ liệu phản hồi từ mô hình AI.");
+    const parsedData = parseAIResponseJSON(rawText);
+
+    let titleVal = parsedData.title || `Đề kiểm tra Tin học ${grade}: ${topic}`;
+    let rawQuestions = parsedData.questions || parsedData.data || parsedData.results || (Array.isArray(parsedData) ? parsedData : []);
+
+    if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
+      throw new Error("Mô hình AI không trả về danh sách câu hỏi hợp lệ.");
     }
 
-    let cleanText = rawText.trim();
-    if (cleanText.includes("```")) {
-      cleanText = cleanText.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
-    }
+    const formattedQuestions = rawQuestions.map((q: any, idx: number) => {
+      const optionsList = extractOptionsList(q.options);
+      return {
+        id: `q-ai-${Date.now()}-${idx}`,
+        question: q.question || `Câu hỏi ${idx + 1} về ${topic}`,
+        options: optionsList,
+        correctAnswer: normalizeCorrectAnswer(q.correctAnswer),
+        explanation: q.explanation || "Giải thích vì sao phương án này chính xác.",
+        keyPoint: q.keyPoint || `Kiến thức trọng tâm về ${topic}`,
+        difficulty: ["Nhận biết", "Thông hiểu", "Vận dụng"].includes(q.difficulty) ? q.difficulty : "Nhận biết"
+      };
+    });
 
-    const data = JSON.parse(cleanText);
-
-    if (data.questions && Array.isArray(data.questions)) {
-      data.questions = data.questions.map((q: any, idx: number) => {
-        const rawOpts = Array.isArray(q.options) ? q.options : ["A", "B", "C", "D"];
-        const cleanOpts = rawOpts.map((opt: any) => cleanOptionText(opt));
-        while (cleanOpts.length < 4) {
-          cleanOpts.push(`Lựa chọn ${cleanOpts.length + 1}`);
-        }
-        return {
-          id: `q-ai-${Date.now()}-${idx}`,
-          question: q.question || `Câu hỏi ${idx + 1}`,
-          options: cleanOpts.slice(0, 4),
-          correctAnswer: normalizeCorrectAnswer(q.correctAnswer),
-          explanation: q.explanation || "Giải thích đáp án đúng.",
-          keyPoint: q.keyPoint || `Ghi nhớ về ${topic}`,
-          difficulty: ["Nhận biết", "Thông hiểu", "Vận dụng"].includes(q.difficulty) ? q.difficulty : "Nhận biết"
-        };
-      });
-    }
-
-    res.json(data);
+    res.json({
+      title: titleVal,
+      questions: formattedQuestions
+    });
   } catch (error: any) {
     console.error("AI Generation Error:", error);
     res.status(500).json({ error: `Không thể tạo câu hỏi qua AI: ${error.message || error}` });
@@ -963,7 +1017,7 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
 
   try {
     const response = await generateContentWithRetry({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.6-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -986,18 +1040,20 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
     });
 
     const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!rawText) {
-      throw new Error("Không nhận được dữ liệu phản hồi.");
-    }
+    const parsedData = parseAIResponseJSON(rawText);
 
-    let cleanText = rawText.trim();
-    if (cleanText.startsWith("```")) {
-      cleanText = cleanText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-    }
+    const optionsList = extractOptionsList(parsedData.options);
+    const questionObj = {
+      id: `q-ai-single-${Date.now()}`,
+      question: parsedData.question || `Câu hỏi nâng cao về ${topic}`,
+      options: optionsList,
+      correctAnswer: normalizeCorrectAnswer(parsedData.correctAnswer),
+      explanation: parsedData.explanation || "Giải thích phương án đúng.",
+      keyPoint: parsedData.keyPoint || `Kiến thức ghi nhớ ${topic}`,
+      difficulty: ["Nhận biết", "Thông hiểu", "Vận dụng"].includes(parsedData.difficulty) ? parsedData.difficulty : "Thông hiểu"
+    };
 
-    const questionData = JSON.parse(cleanText);
-    questionData.id = `q-ai-single-${Date.now()}`;
-    res.json(questionData);
+    res.json({ question: questionObj });
   } catch (error: any) {
     console.error("AI Single Question Generation Error:", error);
     res.status(500).json({ error: `Không thể tạo lại câu hỏi này: ${error.message || error}` });

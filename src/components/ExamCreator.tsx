@@ -184,9 +184,10 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
 
         const data = await res.json().catch(() => null);
 
-        if (res.ok && data && data.question) {
+        if (res.ok && data && (data.question || data.questionText || data.options)) {
+          const qObj = data.question || data;
           newQ = {
-            ...data,
+            ...qObj,
             id: id
           };
         } else if (data && data.error) {
