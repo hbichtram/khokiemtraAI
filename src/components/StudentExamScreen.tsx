@@ -247,10 +247,12 @@ export default function StudentExamScreen({
     }
 
     const newSubId = `sub-${Date.now()}`;
+    const studentCodeVal = (window as any).currentUser?.studentCode || (studentId.startsWith("HS") ? studentId : "");
     const newSubmission = {
       id: newSubId,
       assignmentId,
       studentId,
+      studentCode: studentCodeVal,
       examId: targetExamId,
       score,
       correctCount,

@@ -69,8 +69,23 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
   const safeFormatDate = (dateVal: any) => {
     if (!dateVal) return "Vừa xong";
     try {
-      const d = new Date(dateVal);
+      let d: Date;
+      if (typeof dateVal === "object" && dateVal !== null) {
+        if (typeof dateVal.toDate === "function") {
+          d = dateVal.toDate();
+        } else if (typeof dateVal.seconds === "number") {
+          d = new Date(dateVal.seconds * 1000);
+        } else {
+          d = new Date(dateVal);
+        }
+      } else if (typeof dateVal === "number") {
+        d = new Date(dateVal);
+      } else {
+        d = new Date(String(dateVal));
+      }
+
       if (isNaN(d.getTime())) return "Vừa xong";
+
       return d.toLocaleDateString("vi-VN", {
         day: "2-digit",
         month: "2-digit",

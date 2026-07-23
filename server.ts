@@ -764,11 +764,13 @@ app.delete("/api/exams/:id", (req, res) => {
 // Retry wrapper to handle transient Gemini API errors (like 503, 429, 404)
 async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayMs = 1000) {
   let attempt = 0;
-  const originalModel = options.model;
+  const originalModel = options.model || "gemini-3.5-flash";
   const aiClient = getGeminiClient();
   if (!aiClient) {
     throw new Error("Chưa cấu hình khóa API GEMINI_API_KEY trên môi trường. Vui lòng kiểm tra Environment Variables.");
   }
+
+  const modelOrder = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.6-flash", "gemini-2.0-flash"];
 
   while (attempt < maxRetries) {
     try {
@@ -776,36 +778,45 @@ async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayM
     } catch (error: any) {
       attempt++;
       const errStr = String(error.message || error).toUpperCase();
-      const errStatus = error.status ? String(error.status).toUpperCase() : "";
-      const errCode = Number(error.code);
+      console.warn(`Attempt ${attempt} for model ${options.model} failed: ${errStr}`);
 
-      const is503 = errCode === 503 || errStatus === "UNAVAILABLE" || errStr.includes("503") || errStr.includes("UNAVAILABLE");
-      const is429 = errCode === 429 || errStatus === "RESOURCE_EXHAUSTED" || errStr.includes("429") || errStr.includes("RESOURCE_EXHAUSTED");
-      const isNotFound = errCode === 404 || errStr.includes("404") || errStr.includes("NOT_FOUND") || errStr.includes("NOT FOUND");
-
-      const isTransient = is503 || is429 || isNotFound;
-
-      if (attempt >= maxRetries || !isTransient) {
+      if (attempt >= maxRetries) {
         options.model = originalModel;
         throw error;
       }
 
-      // Fallback hierarchy for active working models
-      if (options.model === "gemini-3.5-flash") {
-        options.model = "gemini-flash-latest";
-        console.warn(`Gemini 3.5-flash failed (${errStr}). Falling back to gemini-flash-latest...`);
-      } else if (options.model === "gemini-flash-latest") {
-        options.model = "gemini-3.1-flash-lite";
-        console.warn(`Gemini-flash-latest failed (${errStr}). Falling back to gemini-3.1-flash-lite...`);
+      const currIdx = modelOrder.indexOf(options.model);
+      if (currIdx !== -1 && currIdx + 1 < modelOrder.length) {
+        options.model = modelOrder[currIdx + 1];
+        console.warn(`Falling back to model: ${options.model}`);
       }
 
       const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
-      console.warn(`Gemini API call failed. Retrying in ${Math.round(delay)}ms... (Attempt ${attempt}/${maxRetries})`);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
   options.model = originalModel;
   throw new Error("Không thể nhận phản hồi từ dịch vụ AI do quá tải.");
+}
+
+function cleanOptionText(text: string): string {
+  if (!text) return "";
+  let clean = String(text).trim();
+  const match = clean.match(/^[A-Da-d][\.\)\:\-]\s*(.*)$/);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return clean;
+}
+
+function normalizeCorrectAnswer(val: string): string {
+  if (!val) return "A";
+  const str = String(val).trim().toUpperCase();
+  if (str.startsWith("A") || str.includes("ÁP ÁN A") || str.includes("OPTION A")) return "A";
+  if (str.startsWith("B") || str.includes("ÁP ÁN B") || str.includes("OPTION B")) return "B";
+  if (str.startsWith("C") || str.includes("ÁP ÁN C") || str.includes("OPTION C")) return "C";
+  if (str.startsWith("D") || str.includes("ÁP ÁN D") || str.includes("OPTION D")) return "D";
+  return "A";
 }
 
 app.post("/api/exams/generate", async (req, res) => {
@@ -833,7 +844,7 @@ Mức độ câu hỏi phân bố hợp lý: Nhận biết (dễ), Thông hiểu
 
 Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo quy chuẩn. Không viết gì thêm ngoài JSON. Giao diện JSON có cấu trúc là một đối tượng chứa:
 - title: Tiêu đề sinh động, thân thiện và hấp dẫn của đề kiểm tra (ví dụ: 'Thử tài lập trình Scratch Lớp 5', 'Khám phá thế giới máy tính Lớp 3')
-- questions: Một mảng chứa ${qty} câu hỏi, mỗi câu hỏi có cấu trúc chính xác như sau:
+- questions: Một mảng chứa đúng ${qty} câu hỏi, mỗi câu hỏi có cấu trúc chính xác như sau:
   {
     "question": "Nội dung câu hỏi ngắn gọn, thu hút",
     "options": [
@@ -888,17 +899,29 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
     }
 
     let cleanText = rawText.trim();
-    if (cleanText.startsWith("```")) {
-      cleanText = cleanText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    if (cleanText.includes("```")) {
+      cleanText = cleanText.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
     }
 
     const data = JSON.parse(cleanText);
-    // Assign random ids to questions
+
     if (data.questions && Array.isArray(data.questions)) {
-      data.questions = data.questions.map((q: any, idx: number) => ({
-        ...q,
-        id: `q-ai-${Date.now()}-${idx}`
-      }));
+      data.questions = data.questions.map((q: any, idx: number) => {
+        const rawOpts = Array.isArray(q.options) ? q.options : ["A", "B", "C", "D"];
+        const cleanOpts = rawOpts.map((opt: any) => cleanOptionText(opt));
+        while (cleanOpts.length < 4) {
+          cleanOpts.push(`Lựa chọn ${cleanOpts.length + 1}`);
+        }
+        return {
+          id: `q-ai-${Date.now()}-${idx}`,
+          question: q.question || `Câu hỏi ${idx + 1}`,
+          options: cleanOpts.slice(0, 4),
+          correctAnswer: normalizeCorrectAnswer(q.correctAnswer),
+          explanation: q.explanation || "Giải thích đáp án đúng.",
+          keyPoint: q.keyPoint || `Ghi nhớ về ${topic}`,
+          difficulty: ["Nhận biết", "Thông hiểu", "Vận dụng"].includes(q.difficulty) ? q.difficulty : "Nhận biết"
+        };
+      });
     }
 
     res.json(data);

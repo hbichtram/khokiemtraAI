@@ -27,7 +27,21 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
   const safeFormatDateTime = (dateVal: any) => {
     if (!dateVal) return "Vừa xong";
     try {
-      const d = new Date(dateVal);
+      let d: Date;
+      if (typeof dateVal === "object" && dateVal !== null) {
+        if (typeof dateVal.toDate === "function") {
+          d = dateVal.toDate();
+        } else if (typeof dateVal.seconds === "number") {
+          d = new Date(dateVal.seconds * 1000);
+        } else {
+          d = new Date(dateVal);
+        }
+      } else if (typeof dateVal === "number") {
+        d = new Date(dateVal);
+      } else {
+        d = new Date(String(dateVal));
+      }
+
       if (isNaN(d.getTime())) return "Vừa xong";
       return d.toLocaleString("vi-VN");
     } catch (e) {
@@ -42,10 +56,19 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
     const submissions = appData.submissions || [];
     const exams = appData.exams || [];
 
-    const sub = submissions.find((s: any) => s.id === submissionId);
+    let sub = submissions.find((s: any) => s.id === submissionId);
+    if (!sub) {
+      sub = submissions.find((s: any) => s.assignmentId === submissionId);
+    }
     if (!sub) throw new Error("Không tìm thấy kết quả làm bài này.");
 
-    const exam = exams.find((e: any) => e.id === sub.examId);
+    let exam = exams.find((e: any) => e.id === sub.examId);
+    if (!exam && sub.assignmentId) {
+      const asg = (appData.assignments || []).find((a: any) => a.id === sub.assignmentId);
+      if (asg) {
+        exam = exams.find((e: any) => e.id === asg.examId);
+      }
+    }
     if (!exam) throw new Error("Không tìm thấy nội dung đề thi.");
 
     const questionsList = exam?.questions || [];
