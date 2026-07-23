@@ -248,7 +248,11 @@ function initDb(): DbSchema {
     submissions: []
   };
 
-  fs.writeFileSync(DB_FILE, JSON.stringify(seedDb, null, 2), "utf-8");
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(seedDb, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("Skipping local db.json write on read-only filesystem:", err);
+  }
   return seedDb;
 }
 
@@ -278,7 +282,11 @@ async function loadFromFirebase() {
       if (data.assignments) db.assignments = data.assignments;
       if (data.submissions) db.submissions = data.submissions;
       console.log("Successfully synced database with Firebase khokiemtraai");
-      fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+      try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+      } catch (err) {
+        console.warn("Skipping local db.json write on read-only filesystem:", err);
+      }
     } else {
       await syncToFirebase();
     }
@@ -291,7 +299,11 @@ async function loadFromFirebase() {
 loadFromFirebase().catch(() => {});
 
 function saveDb() {
-  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+  try {
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
+  } catch (err) {
+    console.warn("Skipping local db.json write on read-only filesystem:", err);
+  }
   syncToFirebase().catch(() => {});
 }
 
@@ -770,20 +782,22 @@ app.delete("/api/exams/:id", (req, res) => {
 // Retry wrapper to handle transient Gemini API errors (like 503, 429, 404)
 async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayMs = 1000) {
   let attempt = 0;
-  const originalModel = options.model || "gemini-3.6-flash";
+  const originalModel = options.model || "gemini-2.5-flash";
   const aiClient = getGeminiClient();
   if (!aiClient) {
     throw new Error("Chưa cấu hình khóa API GEMINI_API_KEY trên môi trường. Vui lòng kiểm tra Environment Variables.");
   }
 
-  const modelOrder = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-2.5-flash"];
+  // Model hierarchy: standard public models first for high compatibility with standard Google API keys
+  const modelOrder = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash"];
+  options.model = modelOrder[0];
 
   while (attempt < maxRetries) {
     try {
       return await aiClient.models.generateContent(options);
     } catch (error: any) {
       attempt++;
-      const errStr = String(error.message || error).toUpperCase();
+      const errStr = String(error?.message || error);
       console.warn(`Attempt ${attempt} for model ${options.model} failed: ${errStr}`);
 
       if (attempt >= maxRetries) {
@@ -930,38 +944,50 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
   }`;
 
   try {
-    const response = await generateContentWithRetry({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            questions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  question: { type: Type.STRING },
-                  options: {
-                    type: Type.ARRAY,
-                    items: { type: Type.STRING }
+    let response;
+    try {
+      response = await generateContentWithRetry({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              questions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    question: { type: Type.STRING },
+                    options: {
+                      type: Type.ARRAY,
+                      items: { type: Type.STRING }
+                    },
+                    correctAnswer: { type: Type.STRING },
+                    explanation: { type: Type.STRING },
+                    keyPoint: { type: Type.STRING },
+                    difficulty: { type: Type.STRING }
                   },
-                  correctAnswer: { type: Type.STRING },
-                  explanation: { type: Type.STRING },
-                  keyPoint: { type: Type.STRING },
-                  difficulty: { type: Type.STRING }
-                },
-                required: ["question", "options", "correctAnswer", "explanation", "keyPoint", "difficulty"]
+                  required: ["question", "options", "correctAnswer", "explanation", "keyPoint", "difficulty"]
+                }
               }
-            }
-          },
-          required: ["title", "questions"]
+            },
+            required: ["title", "questions"]
+          }
         }
-      }
-    });
+      });
+    } catch (schemaErr: any) {
+      console.warn("Retrying AI Generation without responseSchema fallback:", schemaErr?.message || schemaErr);
+      response = await generateContentWithRetry({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+    }
 
     const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
     const parsedData = parseAIResponseJSON(rawText);
@@ -991,8 +1017,12 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
       questions: formattedQuestions
     });
   } catch (error: any) {
-    console.error("AI Generation Error:", error);
-    return res.status(500).json({ error: `Không thể tạo câu hỏi qua AI: ${error.message || error}` });
+    console.error("AI Generation Error:", {
+      message: error?.message,
+      status: error?.status || error?.statusCode,
+      stack: error?.stack
+    });
+    return res.status(500).json({ error: `Không thể tạo câu hỏi qua AI: ${error?.message || error}` });
   }
 };
 
@@ -1030,28 +1060,40 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
 }`;
 
   try {
-    const response = await generateContentWithRetry({
-      model: "gemini-3.6-flash",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            question: { type: Type.STRING },
-            options: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING }
+    let response;
+    try {
+      response = await generateContentWithRetry({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
+              },
+              correctAnswer: { type: Type.STRING },
+              explanation: { type: Type.STRING },
+              keyPoint: { type: Type.STRING },
+              difficulty: { type: Type.STRING }
             },
-            correctAnswer: { type: Type.STRING },
-            explanation: { type: Type.STRING },
-            keyPoint: { type: Type.STRING },
-            difficulty: { type: Type.STRING }
-          },
-          required: ["question", "options", "correctAnswer", "explanation", "keyPoint", "difficulty"]
+            required: ["question", "options", "correctAnswer", "explanation", "keyPoint", "difficulty"]
+          }
         }
-      }
-    });
+      });
+    } catch (schemaErr: any) {
+      console.warn("Retrying AI Single Question without schema:", schemaErr?.message || schemaErr);
+      response = await generateContentWithRetry({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+    }
 
     const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
     const parsedData = parseAIResponseJSON(rawText);
@@ -1070,7 +1112,7 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
     return res.json({ question: questionObj });
   } catch (error: any) {
     console.error("AI Single Question Generation Error:", error);
-    return res.status(500).json({ error: `Không thể tạo lại câu hỏi này: ${error.message || error}` });
+    return res.status(500).json({ error: `Không thể tạo lại câu hỏi này: ${error?.message || error}` });
   }
 };
 
