@@ -6,6 +6,7 @@ import {
   Upload, Image as ImageIcon, Eye, X, FileUp, Info, ArrowLeft, Maximize2
 } from "lucide-react";
 import mammoth from "mammoth";
+import { parseExamFromText, extractTextFromPdfBinary } from "../lib/fileParser";
 import { fsCreateExam } from "../lib/firestoreData";
 import { uploadImageFile } from "../lib/imageStorage";
 
@@ -173,15 +174,14 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
 
       setParseProgress(40);
 
+      const arrayBuffer = await file.arrayBuffer();
+
       if (ext === "json") {
-        const text = await file.text();
-        textContent = text;
+        textContent = await file.text();
       } else if (ext === "txt") {
-        const text = await file.text();
-        textContent = text;
+        textContent = await file.text();
       } else if (ext === "docx") {
         try {
-          const arrayBuffer = await file.arrayBuffer();
           const textResult = await mammoth.extractRawText({ arrayBuffer });
           textContent = textResult.value || "";
 
@@ -214,69 +214,106 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
           console.warn("Mammoth docx parse error:", docxErr);
         }
       } else if (ext === "pdf") {
-        const text = await file.text().catch(() => "");
-        textContent = text || `Đề thi PDF: ${fileName}`;
+        const rawText = await file.text().catch(() => "");
+        const binaryPdfText = extractTextFromPdfBinary(arrayBuffer);
+        textContent = (rawText.length > binaryPdfText.length ? rawText : binaryPdfText) || `Đề thi PDF: ${fileName}`;
       }
 
-      setParseProgress(70);
+      console.log(`[ExamCreator Upload] Extracted ${textContent.length} chars from file '${fileName}' (Type: ${ext})`);
 
-      const res = await fetch("/api/exams/parse-file", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName,
-          fileType: ext,
-          textContent,
-          images: extractedImages
-        })
+      setParseProgress(60);
+
+      // Try server endpoint first
+      let parseData: any = null;
+      try {
+        const res = await fetch("/api/exams/parse-file", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName,
+            fileType: ext,
+            textContent: textContent.slice(0, 50000) // Keep payload size under Vercel 4.5MB limit
+          })
+        });
+        if (res.ok) {
+          parseData = await res.json().catch(() => null);
+        }
+      } catch (fetchErr) {
+        console.warn("[ExamCreator Upload] Server parse fetch error, falling back to client parser:", fetchErr);
+      }
+
+      setParseProgress(85);
+
+      // If server returned valid questions, use them
+      let parsedQuestionsList: any[] = [];
+      let parsedTitle = `Đề thi từ tệp ${fileName}`;
+      let parsedGrade = grade;
+      let parsedTopic = topic;
+
+      if (parseData && Array.isArray(parseData.questions) && parseData.questions.length > 0) {
+        parsedQuestionsList = parseData.questions;
+        if (parseData.title) parsedTitle = parseData.title;
+        if (parseData.grade) parsedGrade = parseData.grade;
+        if (parseData.topic) parsedTopic = parseData.topic;
+        console.log(`[ExamCreator Upload] Using server parsed result (${parsedQuestionsList.length} questions)`);
+      } else {
+        // Fallback to client-side parseExamFromText
+        console.log("[ExamCreator Upload] Server parsing yielded 0 questions or failed. Executing client-side parseExamFromText...");
+        const clientResult = parseExamFromText(textContent, fileName);
+        if (clientResult.questions && clientResult.questions.length > 0) {
+          parsedQuestionsList = clientResult.questions;
+          parsedTitle = clientResult.title;
+          parsedGrade = clientResult.grade;
+          parsedTopic = clientResult.topic;
+          console.log(`[ExamCreator Upload] Client parser succeeded with ${parsedQuestionsList.length} questions`);
+        } else {
+          // Both failed: show detailed safe error message
+          const textLengthStr = textContent.trim().length.toLocaleString("vi-VN");
+          const errorDetail = clientResult.log.details || `Đã đọc tệp thành công (${textLengthStr} ký tự text), nhưng không thể nhận diện được các câu hỏi (Ví dụ dạng 'Câu 1:' hoặc '1.'). Vui lòng kiểm tra lại cấu trúc tệp.`;
+          setError(`Không thể nhận diện câu hỏi từ tệp "${fileName}".\nChi tiết: ${errorDetail}`);
+          return;
+        }
+      }
+
+      // Map parsed questions to final Question state
+      setTitle(parsedTitle);
+      if (parsedGrade) setGrade(parsedGrade);
+      if (parsedTopic) setTopic(parsedTopic);
+
+      const finalQuestions: Question[] = parsedQuestionsList.map((q: any, qIdx: number) => {
+        let questionImg = q.imageUrl;
+        if (!questionImg && extractedImages[qIdx]) {
+          questionImg = extractedImages[qIdx];
+        }
+
+        return {
+          id: `q-file-${Date.now()}-${qIdx}`,
+          question: q.question || `Câu hỏi ${qIdx + 1}`,
+          imageUrl: questionImg || undefined,
+          options: Array.isArray(q.options)
+            ? q.options.map((opt: any) =>
+                typeof opt === "object" && opt !== null
+                  ? { text: opt.text || "", imageUrl: opt.imageUrl }
+                  : String(opt || "")
+              )
+            : ["Phương án A", "Phương án B", "Phương án C", "Phương án D"],
+          correctAnswer: q.correctAnswer || "A",
+          explanation: q.explanation || "Giải thích cho đáp án đúng.",
+          keyPoint: q.keyPoint || "Kiến thức học sinh ghi nhớ.",
+          difficulty: q.difficulty || "Nhận biết"
+        };
       });
 
-      const parseData = await res.json().catch(() => null);
+      setQuestions(finalQuestions);
+      setIsGenerated(true);
+      setSuccess(`Đã trích xuất thành công ${finalQuestions.length} câu hỏi từ tệp "${fileName}". Mời thầy cô kiểm tra và chỉnh sửa nội dung.`);
 
-      setParseProgress(90);
-
-      if (res.ok && parseData && Array.isArray(parseData.questions) && parseData.questions.length > 0) {
-        setTitle(parseData.title || `Đề thi từ tệp ${fileName}`);
-        if (parseData.grade) setGrade(parseData.grade);
-        if (parseData.topic) setTopic(parseData.topic);
-
-        const parsedQuestions: Question[] = parseData.questions.map((q: any, qIdx: number) => {
-          let questionImg = q.imageUrl;
-          if (!questionImg && extractedImages[qIdx]) {
-            questionImg = extractedImages[qIdx];
-          }
-
-          return {
-            id: `q-file-${Date.now()}-${qIdx}`,
-            question: q.question || `Câu hỏi ${qIdx + 1}`,
-            imageUrl: questionImg || undefined,
-            options: Array.isArray(q.options)
-              ? q.options.map((opt: any) =>
-                  typeof opt === "object" && opt !== null
-                    ? { text: opt.text || "", imageUrl: opt.imageUrl }
-                    : String(opt || "")
-                )
-              : ["Phương án A", "Phương án B", "Phương án C", "Phương án D"],
-            correctAnswer: q.correctAnswer || "A",
-            explanation: q.explanation || "Giải thích cho đáp án đúng.",
-            keyPoint: q.keyPoint || "Kiến thức học sinh ghi nhớ.",
-            difficulty: q.difficulty || "Nhận biết"
-          };
-        });
-
-        setQuestions(parsedQuestions);
-        setIsGenerated(true);
-        setSuccess(`Đã trích xuất thành công ${parsedQuestions.length} câu hỏi từ tệp "${fileName}". Mời thầy cô kiểm tra và chỉnh sửa nội dung.`);
-
-        if (extractedImages.length > 0 || ext === "pdf" || ext === "docx") {
-          setNoticeInfo("ℹ️ Tệp đề thi có thể chứa hình ảnh. Thầy cô vui lòng kiểm tra các câu hỏi bên dưới và bổ sung hoặc điều chỉnh hình ảnh nếu cần.");
-        }
-      } else {
-        const errMsg = parseData?.error || "Không thể nhận diện câu hỏi từ tệp này. Vui lòng kiểm tra lại cấu trúc đề trong tệp.";
-        setError(errMsg);
+      if (extractedImages.length > 0 || ext === "pdf" || ext === "docx") {
+        setNoticeInfo("ℹ️ Tệp đề thi đã được tải lên. Thầy cô vui lòng kiểm tra lại thứ tự và thông tin các câu hỏi bên dưới.");
       }
     } catch (err: any) {
-      setError(err.message || "Lỗi khi xử lý tệp đề thi.");
+      console.error("[ExamCreator Upload Error]:", err);
+      setError(`Lỗi khi xử lý tệp đề thi: ${err.message || err}`);
     } finally {
       setParsing(false);
       setParseProgress(100);

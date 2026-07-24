@@ -5,6 +5,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { parseExamFromText } from "./lib/fileParser";
 
 dotenv.config();
 
@@ -1092,6 +1093,8 @@ const handleParseFile = async (req: express.Request, res: express.Response) => {
   try {
     const { fileName, fileType, textContent, fileData } = req.body;
 
+    console.log(`[File Parser Server] Start parsing file '${fileName || "unnamed"}', type: '${fileType}', textLen: ${textContent?.length || 0}`);
+
     // Check if JSON file
     if (fileType === "json" || (fileName && String(fileName).toLowerCase().endsWith(".json"))) {
       let parsed: any = null;
@@ -1128,6 +1131,7 @@ const handleParseFile = async (req: express.Request, res: express.Response) => {
           difficulty: ["Nhận biết", "Thông hiểu", "Vận dụng"].includes(q.difficulty) ? q.difficulty : "Nhận biết"
         }));
 
+        console.log(`[File Parser Server] Successfully parsed JSON file with ${formattedQuestions.length} questions`);
         return res.json({
           title: parsed.title || (fileName ? fileName.replace(/\.[^/.]+$/, "") : "Đề thi từ tệp JSON"),
           grade: parsed.grade || "Lớp 3",
@@ -1197,6 +1201,7 @@ ${textToParse.slice(0, 15000)}
             difficulty: ["Nhận biết", "Thông hiểu", "Vận dụng"].includes(q.difficulty) ? q.difficulty : "Nhận biết"
           }));
 
+          console.log(`[File Parser Server] Gemini parsed ${formattedQuestions.length} questions successfully`);
           return res.json({
             title: parsedData.title || (fileName ? fileName.replace(/\.[^/.]+$/, "") : "Đề thi từ tệp tải lên"),
             grade: parsedData.grade || "Lớp 3",
@@ -1205,76 +1210,27 @@ ${textToParse.slice(0, 15000)}
           });
         }
       } catch (aiErr) {
-        console.warn("Gemini file parsing fallback to regex:", aiErr);
+        console.warn("[File Parser Server] Gemini AI parsing fallback to regex:", aiErr);
       }
     }
 
-    // Fallback regex parser for standard Vietnamese text
-    const lines = textToParse.split("\n").map((l: string) => l.trim()).filter(Boolean);
-    const questions: any[] = [];
-    let currentQ: any = null;
+    // Fallback regex parser using shared parseExamFromText
+    const result = parseExamFromText(textToParse, fileName);
+    console.log(`[File Parser Server] Regex parser log: readSuccess=${result.log.readSuccess}, textCharCount=${result.log.textCharCount}, questionsCount=${result.log.questionsCount}`);
 
-    for (const line of lines) {
-      const qMatch = line.match(/^(?:Câu|Câu hỏi|Question)\s*(\d+)[\.\:\-]\s*(.*)$/i);
-      if (qMatch) {
-        if (currentQ && currentQ.question) {
-          questions.push(currentQ);
-        }
-        currentQ = {
-          id: `q-parsed-${Date.now()}-${questions.length}`,
-          question: qMatch[2] || line,
-          options: [],
-          correctAnswer: "A",
-          explanation: "Giải thích đáp án đúng.",
-          keyPoint: "Ghi nhớ kiến thức.",
-          difficulty: "Nhận biết"
-        };
-        continue;
-      }
-
-      const optMatch = line.match(/^([A-Da-d])[\.\)\:\-]\s*(.*)$/);
-      if (optMatch && currentQ) {
-        currentQ.options.push(optMatch[2] || line);
-        continue;
-      }
-
-      const ansMatch = line.match(/^(?:Đáp án|Đáp án đúng|Correct)[\.\:\-]\s*([A-Da-d])/i);
-      if (ansMatch && currentQ) {
-        currentQ.correctAnswer = ansMatch[1].toUpperCase();
-        continue;
-      }
-
-      const expMatch = line.match(/^(?:Giải thích|Hướng dẫn|Lời giải)[\.\:\-]\s*(.*)$/i);
-      if (expMatch && currentQ) {
-        currentQ.explanation = expMatch[1];
-        continue;
-      }
-
-      if (currentQ && currentQ.options.length === 0) {
-        currentQ.question += " " + line;
-      }
-    }
-
-    if (currentQ && currentQ.question) {
-      questions.push(currentQ);
-    }
-
-    if (questions.length > 0) {
-      const formatted = questions.map((q) => ({
-        ...q,
-        options: extractOptionsList(q.options),
-        correctAnswer: normalizeCorrectAnswer(q.correctAnswer)
-      }));
+    if (result.questions && result.questions.length > 0) {
       return res.json({
-        title: fileName ? fileName.replace(/\.[^/.]+$/, "") : "Đề thi trích xuất từ tệp",
-        grade: "Lớp 3",
-        topic: "Nội dung bài học",
-        questions: formatted
+        title: result.title,
+        grade: result.grade,
+        topic: result.topic,
+        questions: result.questions,
+        log: result.log
       });
     }
 
     return res.status(400).json({
-      error: "Không thể nhận diện câu hỏi từ tệp này. Vui lòng kiểm tra lại nội dung tệp."
+      error: result.log.details || "Không thể nhận diện câu hỏi từ tệp này. Vui lòng kiểm tra lại cấu trúc đề trong tệp.",
+      log: result.log
     });
   } catch (err: any) {
     console.error("Parse file error:", err);
