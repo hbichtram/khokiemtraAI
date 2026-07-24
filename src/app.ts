@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
 import { parseExamFromText } from "./lib/fileParser";
+import { computeClassLeaderboard } from "./lib/leaderboard";
 
 dotenv.config();
 
@@ -1476,10 +1477,13 @@ app.get("/api/student/:studentId/dashboard", (req, res) => {
     }
   });
 
+  const lb = computeClassLeaderboard(cls, db.assignments, db.submissions, targetStudent?.id || studentId, targetStudent?.studentCode);
+
   res.json({
-    classInfo: { id: cls.id, name: cls.name },
+    classInfo: { id: cls.id, name: cls.name, students: cls.students },
     activeAssignments: active,
-    completedAssignments: completed
+    completedAssignments: completed,
+    leaderboard: lb
   });
 });
 

@@ -50,7 +50,7 @@ export default function StudentExamScreen({
     const snap = await getDoc(doc(firestoreDb, "appData", "main"));
     if (!snap.exists()) throw new Error("Không tìm thấy dữ liệu bài kiểm tra trên hệ thống.");
     const data = snap.data();
-    const asg = (data.assignments || []).find((a: any) => a.id === assignmentId);
+    const asg = (data.assignments || []).find((a: any) => a.id === assignmentId || a.assignmentId === assignmentId);
     if (!asg) throw new Error("Không tìm thấy bài kiểm tra được giao.");
     setAssignment(asg);
 

@@ -42,6 +42,7 @@ export default function App() {
       if (fbUser) {
         let name = fbUser.displayName || "Giáo viên";
         let userEmail = fbUser.email || "";
+        let teacherPhotoURL = fbUser.photoURL || undefined;
 
         try {
           // Attempt to fetch teacher profile in Firestore (Collection: teachers, Document ID: UID)
@@ -52,6 +53,9 @@ export default function App() {
             const data = docSnap.data();
             if (data.fullName || data.name) {
               name = data.fullName || data.name;
+            }
+            if (data.photoURL) {
+              teacherPhotoURL = data.photoURL;
             }
           } else {
             // Auto-provision teacher doc in Firestore if it doesn't exist yet
@@ -80,6 +84,7 @@ export default function App() {
           id: fbUser.uid,
           name: name,
           email: userEmail,
+          photoURL: teacherPhotoURL,
           role: "teacher"
         };
 
@@ -131,6 +136,7 @@ export default function App() {
       const fbUser = userCredential.user;
 
       let teacherName = fbUser.displayName || "Giáo viên";
+      let teacherPhotoURL = fbUser.photoURL || undefined;
 
       // 2. Check/create teacher profile in Firestore without blocking login if Firestore fails
       try {
@@ -140,6 +146,9 @@ export default function App() {
         if (docSnap.exists()) {
           const teacherInfo = docSnap.data();
           teacherName = teacherInfo.fullName || teacherInfo.name || teacherName;
+          if (teacherInfo.photoURL) {
+            teacherPhotoURL = teacherInfo.photoURL;
+          }
         } else {
           await setDoc(teacherDocRef, {
             uid: fbUser.uid,
@@ -162,6 +171,7 @@ export default function App() {
         id: fbUser.uid,
         name: teacherName,
         email: fbUser.email || email.trim(),
+        photoURL: teacherPhotoURL,
         role: "teacher"
       };
 

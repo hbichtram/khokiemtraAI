@@ -5,10 +5,13 @@ import StudentReviewScreen from "./StudentReviewScreen";
 import Footer from "./Footer";
 import { 
   Award, Play, Eye, LogOut, BookOpen, Clock, Calendar, 
-  HelpCircle, RefreshCw, AlertCircle, Smile, GraduationCap 
+  HelpCircle, RefreshCw, AlertCircle, Smile, GraduationCap,
+  Trophy, Star 
 } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { db as firestoreDb } from "../firebase";
+import { computeClassLeaderboard, LeaderboardItem } from "../lib/leaderboard";
+import { sortAndProcessAssignments, formatRemainingTime, ProcessedAssignment } from "../lib/assignmentUtils";
 
 interface StudentDashboardProps {
   user: User;
@@ -18,6 +21,8 @@ interface StudentDashboardProps {
 export default function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
   const [activeAssignments, setActiveAssignments] = useState<any[]>([]);
   const [completedAssignments, setCompletedAssignments] = useState<any[]>([]);
+  const [allSortedAssignments, setAllSortedAssignments] = useState<ProcessedAssignment[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([]);
   const [classInfo, setClassInfo] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,58 +121,18 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
     setClassInfo(cls || { id: classId, name: user.className || "Lớp học" });
 
     const classAssignments = assignments.filter((a: any) => a.classId === classId);
+    const processed = sortAndProcessAssignments(classAssignments, exams, submissions, user.id, user.studentCode);
 
-    const active: any[] = [];
-    const completed: any[] = [];
+    setAllSortedAssignments(processed);
+    setActiveAssignments(processed.filter((a) => a.computedStatus !== "completed"));
+    setCompletedAssignments(processed.filter((a) => a.computedStatus === "completed"));
 
-    for (const asg of classAssignments) {
-      const exam = exams.find((e: any) => e.id === asg.examId);
-      const sub = submissions.find((s: any) => s.assignmentId === asg.id && (s.studentId === user.id || (user.studentCode && s.studentCode === user.studentCode)));
-
-      const isSubmitted = sub && (sub.status === "submitted" || !sub.status);
-
-      const now = new Date();
-      const start = new Date(asg.startTime);
-      const end = new Date(asg.endTime);
-      const isTimeValid = now >= start && now <= end;
-      let currentStatus = asg.status || "Đang diễn ra";
-      if (isTimeValid && currentStatus !== "Đang diễn ra") {
-        currentStatus = "Đang diễn ra";
-      }
-
-      const info = {
-        assignmentId: asg.id,
-        examId: asg.examId,
-        title: exam?.title || "Bài kiểm tra",
-        grade: exam?.grade || "Tin học",
-        topic: exam?.topic || "Tin học",
-        duration: exam?.duration || 15,
-        startTime: asg.startTime,
-        endTime: asg.endTime,
-        status: currentStatus,
-        questionsCount: exam?.questions?.length || 0,
-        classId: asg.classId
-      };
-
-      if (sub && isSubmitted) {
-        completed.push({
-          ...info,
-          submissionId: sub.id,
-          score: typeof sub.score === "number" ? sub.score : 0,
-          correctCount: sub.correctCount ?? 0,
-          wrongCount: sub.wrongCount ?? 0,
-          submittedAt: sub.submittedAt || new Date().toISOString()
-        });
-      } else {
-        active.push({
-          ...info,
-          submissionStatus: sub?.status || "not_started"
-        });
-      }
+    if (cls) {
+      const lb = computeClassLeaderboard(cls, assignments, submissions, user.id, user.studentCode);
+      setLeaderboard(lb);
+    } else {
+      setLeaderboard([]);
     }
-
-    setActiveAssignments(active);
-    setCompletedAssignments(completed);
   };
 
   const fetchDashboardData = async () => {
@@ -179,9 +144,19 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
         const contentType = res.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const data = await res.json();
-          setActiveAssignments(data.activeAssignments || []);
-          setCompletedAssignments(data.completedAssignments || []);
+          const rawAll = [...(data.activeAssignments || []), ...(data.completedAssignments || [])];
+          const processed = sortAndProcessAssignments(rawAll, [], [], user.id, user.studentCode);
+
+          setAllSortedAssignments(processed);
+          setActiveAssignments(processed.filter((a) => a.computedStatus !== "completed"));
+          setCompletedAssignments(processed.filter((a) => a.computedStatus === "completed"));
           setClassInfo(data.classInfo || null);
+          if (data.leaderboard) {
+            setLeaderboard(data.leaderboard);
+          } else {
+            await fetchDashboardFromFirestore();
+            return;
+          }
           return;
         }
       }
@@ -199,19 +174,20 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
   };
 
   const handleStartExam = (asg: any) => {
-    if (!asg || !asg.assignmentId) {
+    const targetAssignmentId = asg?.assignmentId || asg?.id;
+    if (!asg || !targetAssignmentId) {
       alert("Không tìm thấy bài kiểm tra được giao.");
       return;
     }
     
     console.log("[DEBUG_START_EXAM_CLICK]", {
-      assignmentId: asg.assignmentId,
+      assignmentId: targetAssignmentId,
       examId: asg.examId,
       classId: asg.classId,
       studentId: user?.id
     });
 
-    navigate(`/student/exam/${asg.assignmentId}`);
+    navigate(`/student/exam/${targetAssignmentId}`);
   };
 
   const handleViewReview = (submissionId: string) => {
@@ -257,7 +233,10 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                 <Smile className="w-6 h-6 text-slate-900 shrink-0 animate-bounce" />
               </div>
               <p className="text-xs md:text-sm font-bold text-slate-800 mt-1">
-                Lớp học: <strong className="text-slate-950 font-black">{classInfo?.name || user.className || "Lớp học"}</strong> | Mã HS: <strong className="text-slate-950 font-black font-mono">{user.studentCode}</strong>
+                Lớp: <strong className="text-slate-950 font-black">{classInfo?.name || user.className || "Tin học 5A"}</strong> | Mã HS: <strong className="text-slate-950 font-black font-mono">{user.studentCode}</strong>
+              </p>
+              <p className="text-xs md:text-sm font-bold text-slate-800 mt-0.5">
+                Giáo viên: <strong className="text-slate-950 font-black">Hồng Bích Trâm</strong>
               </p>
             </div>
           </div>
@@ -288,82 +267,118 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            {/* LEFT 2 COLUMNS: ASSIGNMENTS TO DO */}
+            {/* LEFT 2 COLUMNS: ASSIGNMENTS LIST WITH PRIORITY SORTING */}
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white border border-slate-100 rounded-[32px] p-6 md:p-8 shadow-sm space-y-6">
-                <div className="border-b border-slate-50 pb-4 flex justify-between items-center">
+                <div className="border-b border-slate-50 pb-4 flex justify-between items-center flex-wrap gap-2">
                   <h2 className="font-black text-slate-900 text-base md:text-lg flex items-center gap-2">
                     <span className="bg-amber-100 p-1.5 rounded-xl text-amber-600 block shadow-xs">
                       <Play className="w-5 h-5 fill-amber-500 shrink-0" />
                     </span>
-                    Bài kiểm tra em cần làm
+                    Danh sách bài kiểm tra
                   </h2>
-                  <span className="bg-amber-100 text-amber-800 text-[10px] font-black px-3 py-1 rounded-xl">
-                    {activeAssignments.length} BÀI CHƯA LÀM
+                  <span className="bg-amber-100 text-amber-900 text-[11px] font-black px-3.5 py-1.5 rounded-xl border border-amber-200">
+                    {allSortedAssignments.filter((a) => a.computedStatus === "ongoing").length > 0
+                      ? `🟢 ${allSortedAssignments.filter((a) => a.computedStatus === "ongoing").length} BÀI ĐANG MỞ`
+                      : `${allSortedAssignments.length} BÀI KIỂM TRA`}
                   </span>
                 </div>
 
-                {activeAssignments.length === 0 ? (
+                {allSortedAssignments.length === 0 ? (
                   <div className="text-center py-12 bg-slate-50/50 rounded-[24px] border border-dashed border-slate-200">
                     <Smile className="w-16 h-16 text-amber-400 mx-auto mb-3 bg-white p-3 rounded-2xl" />
-                    <h3 className="font-black text-slate-700 text-sm">Tuyệt vời! Em đã hoàn thành hết mọi bài tập</h3>
+                    <h3 className="font-black text-slate-700 text-sm">Chưa có bài kiểm tra nào</h3>
                     <p className="text-slate-400 text-xs font-bold mt-1 max-w-xs mx-auto leading-relaxed">
                       Khi thầy cô giao thêm bài kiểm tra Tin học mới, bài làm sẽ tự động hiển thị ở đây em nhé.
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-4 animate-fadeIn">
-                    {activeAssignments.map((asg) => {
-                      const isUpcoming = asg.status === "Chưa bắt đầu";
-                      const isExpired = asg.status === "Đã hết hạn";
-                      const isOngoing = asg.status === "Đang diễn ra";
+                    {allSortedAssignments.map((asg) => {
+                      const isOngoing = asg.computedStatus === "ongoing";
+                      const isUpcoming = asg.computedStatus === "upcoming";
+                      const isCompleted = asg.computedStatus === "completed";
+                      const isExpired = asg.computedStatus === "expired";
                       const isInProgress = asg.submissionStatus === "in_progress";
+
+                      const remInfo = formatRemainingTime(asg.startTime, asg.endTime, asg.computedStatus);
 
                       return (
                         <div
                           key={asg.assignmentId}
-                          className={`border rounded-3xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 transition-all bg-white ${
+                          className={`border rounded-3xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 transition-all ${
                             isOngoing
-                              ? "border-slate-100 hover:border-amber-300 hover:shadow-lg hover:shadow-amber-100/30"
+                              ? "border-amber-300 bg-gradient-to-r from-amber-500/10 via-amber-50/20 to-white shadow-md shadow-amber-100/40 hover:shadow-lg hover:shadow-amber-100/60"
                               : isUpcoming
-                              ? "border-slate-100 opacity-85"
-                              : "border-slate-100 opacity-65 bg-slate-50/30"
+                              ? "border-blue-200/80 bg-blue-50/20 opacity-90"
+                              : isCompleted
+                              ? "border-emerald-200/80 bg-emerald-50/30"
+                              : "border-slate-200/60 bg-slate-50/80 opacity-65"
                           }`}
                         >
-                          <div className="space-y-2">
+                          <div className="space-y-2.5">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-0.5 rounded-lg uppercase">
                                 {asg.grade}
                               </span>
-                              <span className="bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-0.5 rounded-lg uppercase">
-                                Môn học: Tin học
-                              </span>
-                              {isOngoing && !isInProgress && (
-                                <span className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] font-black px-2.5 py-0.5 rounded-lg uppercase animate-pulse">
-                                  Đang diễn ra
-                                </span>
-                              )}
-                              {isOngoing && isInProgress && (
-                                <span className="bg-amber-50 border border-amber-100 text-amber-700 text-[10px] font-black px-2.5 py-0.5 rounded-lg uppercase animate-pulse">
-                                  Đang làm dở
+
+                              {/* Status Badge */}
+                              {isOngoing && (
+                                <span className="bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                  {isInProgress ? "🟢 Đang làm bài" : "🟢 Đang làm bài"}
                                 </span>
                               )}
                               {isUpcoming && (
-                                <span className="bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-black px-2.5 py-0.5 rounded-lg uppercase">
-                                  Sắp diễn ra
+                                <span className="bg-blue-100 border border-blue-300 text-blue-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
+                                  🔵 Sắp diễn ra
+                                </span>
+                              )}
+                              {isCompleted && (
+                                <span className="bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
+                                  ✅ Đã hoàn thành
                                 </span>
                               )}
                               {isExpired && (
-                                <span className="bg-rose-50 border border-rose-100 text-rose-700 text-[10px] font-black px-2.5 py-0.5 rounded-lg uppercase">
-                                  Đã quá hạn
+                                <span className="bg-rose-100 border border-rose-300 text-rose-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
+                                  🔴 Đã quá hạn
+                                </span>
+                              )}
+
+                              {/* Time / Score Badge */}
+                              {isOngoing && remInfo.text && (
+                                <span
+                                  className={`text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 ${
+                                    remInfo.isUrgent
+                                      ? "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse"
+                                      : "bg-amber-100 text-amber-900 border border-amber-300"
+                                  }`}
+                                >
+                                  {remInfo.text}
+                                </span>
+                              )}
+                              {isUpcoming && remInfo.text && (
+                                <span className="bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-bold px-3 py-1 rounded-xl">
+                                  {remInfo.text}
+                                </span>
+                              )}
+                              {isCompleted && (
+                                <span className="bg-emerald-200/90 text-emerald-950 text-[11px] font-black px-3 py-1 rounded-xl shadow-2xs">
+                                  Điểm: {asg.score ?? 0}/10
+                                </span>
+                              )}
+                              {isExpired && (
+                                <span className="bg-slate-200/80 text-slate-600 text-[11px] font-bold px-3 py-1 rounded-xl">
+                                  Đã hết hạn
                                 </span>
                               )}
                             </div>
-                            
-                            <h3 className="font-black text-slate-900 text-base leading-snug">
+
+                            <h3 className="font-black text-slate-900 text-base md:text-lg leading-snug">
                               {asg.title}
                             </h3>
-                            <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-400">
+
+                            <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-500">
                               <span className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">
                                 <BookOpen className="w-3.5 h-3.5 shrink-0" />
                                 Chủ đề: {asg.topic}
@@ -374,19 +389,34 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                               </span>
                             </div>
 
-                            {isUpcoming ? (
-                              <p className="text-xs font-black text-blue-600 flex items-center gap-1.5 pt-1">
+                            {/* Detailed time info */}
+                            {isUpcoming && (
+                              <p className="text-xs font-black text-blue-600 flex items-center gap-1.5 pt-0.5">
                                 <Calendar className="w-3.5 h-3.5 shrink-0" />
                                 Thời gian bắt đầu: {new Date(asg.startTime).toLocaleString("vi-VN")}
                               </p>
-                            ) : (
-                              <p className={`text-xs font-black flex items-center gap-1.5 pt-1 ${isExpired ? "text-slate-400 line-through" : "text-rose-500"}`}>
+                            )}
+                            {isOngoing && (
+                              <p className="text-xs font-black text-amber-700 flex items-center gap-1.5 pt-0.5">
+                                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                Hạn cuối: {new Date(asg.endTime).toLocaleString("vi-VN")}
+                              </p>
+                            )}
+                            {isCompleted && (
+                              <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 pt-0.5">
+                                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                Ngày làm bài: {asg.submittedAt ? safeFormatDate(asg.submittedAt) : "Đã nộp"}
+                              </p>
+                            )}
+                            {isExpired && (
+                              <p className="text-xs font-bold text-slate-400 line-through flex items-center gap-1.5 pt-0.5">
                                 <Calendar className="w-3.5 h-3.5 shrink-0" />
                                 Hạn cuối: {new Date(asg.endTime).toLocaleString("vi-VN")}
                               </p>
                             )}
                           </div>
 
+                          {/* Action Button */}
                           {isOngoing ? (
                             <button
                               id={`btn-start-exam-${asg.assignmentId}`}
@@ -408,10 +438,19 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                               Chưa đến giờ
                               <Clock className="w-4 h-4" />
                             </button>
+                          ) : isCompleted ? (
+                            <button
+                              id={`btn-review-exam-${asg.submissionId || asg.assignmentId}`}
+                              onClick={() => handleViewReview(asg.submissionId!)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98] shadow-sm"
+                            >
+                              Xem kết quả
+                              <Eye className="w-4 h-4" />
+                            </button>
                           ) : (
                             <button
                               disabled
-                              className="bg-slate-50 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-100"
+                              className="bg-slate-100 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
                             >
                               Đã quá hạn
                               <AlertCircle className="w-4 h-4" />
@@ -426,7 +465,109 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
             </div>
 
             {/* RIGHT COLUMN: RECENT COMPLETED / HISTORY */}
-            <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm space-y-6">
+            <div className="space-y-6">
+              {/* LEADERBOARD CARD */}
+              <div
+                id="student-leaderboard-card"
+                className="bg-gradient-to-br from-amber-500/10 via-amber-400/5 to-orange-500/10 border-2 border-amber-300/80 rounded-[32px] p-6 shadow-sm space-y-5 relative overflow-hidden"
+              >
+                <div className="border-b border-amber-200/60 pb-3.5 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="bg-gradient-to-tr from-amber-500 to-amber-400 text-white p-2.5 rounded-2xl shadow-md shadow-amber-200 shrink-0">
+                      <Trophy className="w-5 h-5 text-amber-950 fill-amber-300" />
+                    </div>
+                    <div>
+                      <h2 className="font-black text-slate-900 text-base flex items-center gap-1.5 tracking-tight">
+                        🏆 BẢNG VÀNG THÀNH TÍCH
+                      </h2>
+                      <span className="text-[11px] font-bold text-amber-800/80 block">
+                        {classInfo?.name || "Lớp học"}
+                      </span>
+                    </div>
+                  </div>
+                  <span className="bg-amber-200/80 text-amber-950 text-[10px] font-black px-2.5 py-1 rounded-xl shrink-0">
+                    TOP 10
+                  </span>
+                </div>
+
+                {leaderboard.length === 0 ? (
+                  <div className="bg-white/90 backdrop-blur-xs border border-amber-200/70 rounded-2xl p-5 text-center space-y-2">
+                    <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                      <Trophy className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <p className="text-xs font-bold text-slate-700 leading-relaxed">
+                      🏆 Bảng vàng thành tích sẽ được cập nhật sau khi các bạn hoàn thành bài kiểm tra đầu tiên!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 animate-fadeIn">
+                    {leaderboard.map((item, idx) => {
+                      const isTop1 = item.rank === 1;
+                      const isTop2 = item.rank === 2;
+                      const isTop3 = item.rank === 3;
+
+                      return (
+                        <div
+                          key={item.studentId || `rank-${idx}`}
+                          className={`p-3 rounded-2xl flex items-center justify-between gap-3 transition-all border ${
+                            item.isCurrentStudent
+                              ? "bg-amber-100/90 border-amber-400 shadow-xs ring-2 ring-amber-300/60"
+                              : isTop1
+                              ? "bg-gradient-to-r from-amber-100/80 to-yellow-50/80 border-amber-300/80"
+                              : isTop2
+                              ? "bg-slate-100/80 border-slate-200/80"
+                              : isTop3
+                              ? "bg-orange-50/80 border-orange-200/80"
+                              : "bg-white/90 border-slate-100"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            <div
+                              className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-xs ${
+                                isTop1
+                                  ? "bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 border border-amber-300"
+                                  : isTop2
+                                  ? "bg-gradient-to-tr from-slate-300 to-slate-200 text-slate-800 border border-slate-300"
+                                  : isTop3
+                                  ? "bg-gradient-to-tr from-amber-700 to-amber-600 text-amber-50 border border-amber-800"
+                                  : "bg-slate-100 text-slate-600 border border-slate-200"
+                              }`}
+                            >
+                              {isTop1 ? "🥇" : isTop2 ? "🥈" : isTop3 ? "🥉" : item.rank}
+                            </div>
+
+                            <div className="overflow-hidden space-y-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-black text-xs sm:text-sm text-slate-900 truncate">
+                                  {item.name}
+                                </span>
+                                {item.isCurrentStudent && (
+                                  <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full shadow-xs inline-flex items-center gap-0.5 shrink-0 animate-pulse">
+                                    <Star className="w-2.5 h-2.5 fill-current" />
+                                    Bạn
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-500 block truncate">
+                                Đã làm: <strong className="text-slate-700">{item.completedCount} bài</strong>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <span className="font-black text-xs sm:text-sm text-amber-800 bg-amber-100/90 border border-amber-200/80 px-2.5 py-1 rounded-xl block shadow-2xs">
+                              {item.avgScore} <span className="text-[10px] font-bold">điểm</span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* HISTORY CARD */}
+              <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm space-y-6">
               <div className="border-b border-slate-50 pb-4">
                 <h2 className="font-black text-slate-900 text-sm md:text-base flex items-center gap-2">
                   <span className="bg-emerald-100 p-1.5 rounded-xl text-emerald-600 block shadow-xs animate-pulse">
@@ -487,7 +628,8 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
               )}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         <Footer className="mt-12 pt-6 border-t border-slate-200/60" />
       </main>

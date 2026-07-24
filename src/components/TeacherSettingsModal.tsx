@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { User } from "../types";
 import { 
   User as UserIcon, Lock, Settings, LogOut, X, 
   Check, Edit3, Save, ShieldCheck, Mail, Phone, 
-  Building, BookOpen, Key, AlertCircle, RefreshCw, Sparkles, UserCheck
+  Building, BookOpen, Key, AlertCircle, RefreshCw, Sparkles, UserCheck,
+  Camera, Upload, Trash2
 } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { updatePassword } from "firebase/auth";
 import { auth, db as firestoreDb } from "../firebase";
+import { uploadImageFile } from "../lib/imageStorage";
 
 interface TeacherSettingsModalProps {
   isOpen: boolean;
@@ -34,13 +36,21 @@ export default function TeacherSettingsModal({
   const [school, setSchool] = useState("");
   const [department, setDepartment] = useState("");
   const [subject, setSubject] = useState("");
-  const [photoURL, setPhotoURL] = useState("");
+  const [photoURL, setPhotoURL] = useState(user.photoURL || "");
+
+  // Avatar upload states
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewURL, setPreviewURL] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
+
+  // Computed effective avatar URL for real-time preview
+  const displayAvatarURL = previewURL || photoURL;
 
   // Security Form States
   const [newPassword, setNewPassword] = useState("");
@@ -68,6 +78,8 @@ export default function TeacherSettingsModal({
   const fetchTeacherProfile = async () => {
     setLoading(true);
     setProfileError(null);
+    setSelectedFile(null);
+    setPreviewURL(null);
     try {
       const docRef = doc(firestoreDb, "teachers", user.id);
       const snap = await getDoc(docRef);
@@ -78,14 +90,14 @@ export default function TeacherSettingsModal({
         setSchool(data.school || "Trường Tiểu học CTST");
         setDepartment(data.department || "Tổ Tin học - Công nghệ");
         setSubject(data.subject || "Tin học");
-        setPhotoURL(data.photoURL || "");
+        setPhotoURL(data.photoURL || user.photoURL || "");
       } else {
         setFullName(user.name || "Giáo viên");
         setPhone("");
         setSchool("Trường Tiểu học CTST");
         setDepartment("Tổ Tin học - Công nghệ");
         setSubject("Tin học");
-        setPhotoURL("");
+        setPhotoURL(user.photoURL || "");
       }
     } catch (err) {
       console.error("Error fetching teacher profile:", err);
@@ -93,6 +105,46 @@ export default function TeacherSettingsModal({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setProfileError(null);
+    setProfileSuccess(null);
+
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file formats: .jpg, .jpeg, .png, .webp
+    const validMimeTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const extension = file.name.split(".").pop()?.toLowerCase() || "";
+    const validExtensions = ["jpg", "jpeg", "png", "webp"];
+
+    if (!validMimeTypes.includes(file.type.toLowerCase()) && !validExtensions.includes(extension)) {
+      setProfileError("Định dạng tệp không hợp lệ! Hệ thống chỉ hỗ trợ các tệp ảnh định dạng .jpg, .jpeg, .png hoặc .webp");
+      setSelectedFile(null);
+      setPreviewURL(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    // Max 10MB check
+    if (file.size > 10 * 1024 * 1024) {
+      setProfileError("Dung lượng tệp quá lớn! Vui lòng chọn ảnh nhỏ hơn 10MB.");
+      setSelectedFile(null);
+      setPreviewURL(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setSelectedFile(file);
+    const localPreview = URL.createObjectURL(file);
+    setPreviewURL(localPreview);
+  };
+
+  const handleCancelSelectedFile = () => {
+    setSelectedFile(null);
+    setPreviewURL(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -108,6 +160,21 @@ export default function TeacherSettingsModal({
 
     setSaving(true);
     try {
+      let finalPhotoURL = photoURL;
+
+      // 1. Upload new image file if selected
+      if (selectedFile) {
+        try {
+          finalPhotoURL = await uploadImageFile(selectedFile);
+        } catch (uploadErr: any) {
+          console.error("Upload avatar error:", uploadErr);
+          setProfileError(uploadErr?.message || "Không thể tải ảnh đại diện lên. Vui lòng kiểm tra lại.");
+          setSaving(false);
+          return;
+        }
+      }
+
+      // 2. Save profile to Firestore
       const uid = user.id;
       const teacherDocRef = doc(firestoreDb, "teachers", uid);
       const updateData = {
@@ -119,20 +186,26 @@ export default function TeacherSettingsModal({
         school: school.trim(),
         department: department.trim(),
         subject: subject.trim(),
-        photoURL: photoURL.trim(),
+        photoURL: finalPhotoURL.trim(),
         updatedAt: new Date().toISOString()
       };
 
       await setDoc(teacherDocRef, updateData, { merge: true });
 
-      // Update state in parent & localStorage
+      // 3. Sync user state instantly across parent dashboard & local storage
       const updatedUser: User = {
         ...user,
-        name: cleanName
+        name: cleanName,
+        photoURL: finalPhotoURL.trim()
       };
       onUpdateUser(updatedUser);
 
-      setProfileSuccess("Đã cập nhật thông tin tài khoản thành công.");
+      setPhotoURL(finalPhotoURL.trim());
+      setSelectedFile(null);
+      setPreviewURL(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+
+      setProfileSuccess("Đã cập nhật thông tin tài khoản và ảnh đại diện thành công.");
       setIsEditing(false);
     } catch (err) {
       console.error("Save profile error:", err);
@@ -212,8 +285,8 @@ export default function TeacherSettingsModal({
             {/* Profile Brief Badge */}
             <div className="bg-slate-900 p-3.5 rounded-2xl mb-6 flex items-center gap-3 border border-slate-800">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 text-white font-black text-sm flex items-center justify-center shrink-0 overflow-hidden shadow-inner">
-                {photoURL ? (
-                  <img src={photoURL} alt={fullName} className="w-full h-full object-cover" />
+                {displayAvatarURL ? (
+                  <img src={displayAvatarURL} alt={fullName} className="w-full h-full object-cover" />
                 ) : (
                   fullName.charAt(0).toUpperCase() || "G"
                 )}
@@ -337,29 +410,82 @@ export default function TeacherSettingsModal({
 
                   {/* Profile Cards Display / Edit Form */}
                   <form onSubmit={handleSaveProfile} className="space-y-5">
-                    {/* Avatar Preview Section */}
-                    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-xl flex items-center justify-center shrink-0 shadow-md overflow-hidden">
-                        {photoURL ? (
-                          <img src={photoURL} alt={fullName} className="w-full h-full object-cover" />
-                        ) : (
-                          fullName.charAt(0).toUpperCase() || "G"
-                        )}
+                    {/* Avatar Upload / Preview Section */}
+                    <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-xl flex items-center justify-center shrink-0 shadow-md overflow-hidden relative group">
+                            {displayAvatarURL ? (
+                              <img src={displayAvatarURL} alt={fullName} className="w-full h-full object-cover" />
+                            ) : (
+                              fullName.charAt(0).toUpperCase() || "G"
+                            )}
+                          </div>
+
+                          <div className="space-y-1.5 flex-1">
+                            <span className="text-[11px] text-slate-500 font-extrabold uppercase tracking-wider block">
+                              Ảnh đại diện giáo viên
+                            </span>
+
+                            {isEditing ? (
+                              <div className="space-y-2">
+                                {/* Hidden native file input */}
+                                <input
+                                  type="file"
+                                  ref={fileInputRef}
+                                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                                  onChange={handleAvatarFileSelect}
+                                  className="hidden"
+                                />
+
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                                  >
+                                    📷 Tải ảnh đại diện lên
+                                  </button>
+
+                                  {selectedFile && (
+                                    <button
+                                      type="button"
+                                      onClick={handleCancelSelectedFile}
+                                      className="inline-flex items-center gap-1 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                      Hủy chọn
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-600 font-medium">
+                                Thầy/cô bấm nút "Chỉnh sửa" để chọn và tải ảnh đại diện từ thiết bị lên.
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="space-y-1 flex-1">
-                        <span className="text-[11px] text-slate-400 font-extrabold uppercase tracking-wider block">Ảnh đại diện</span>
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={photoURL}
-                            onChange={(e) => setPhotoURL(e.target.value)}
-                            placeholder="Dán URL ảnh đại diện (Ví dụ: https://...)"
-                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                          />
-                        ) : (
-                          <p className="text-xs text-slate-600 font-medium">Thầy/cô có thể cập nhật đường dẫn ảnh đại diện khi chỉnh sửa.</p>
-                        )}
-                      </div>
+
+                      {/* Selected file confirmation / format note */}
+                      {isEditing && (
+                        <div>
+                          {selectedFile ? (
+                            <div className="bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl flex items-center justify-between gap-2 text-xs font-bold text-emerald-800">
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span className="truncate">Tệp đã chọn: <strong>{selectedFile.name}</strong></span>
+                              </div>
+                              <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-md shrink-0">Chưa lưu</span>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-400 font-medium">
+                              Chỉ hỗ trợ tệp hình ảnh định dạng: <strong className="text-slate-600">.jpg, .jpeg, .png, .webp</strong> (Dung lượng tối đa 10MB)
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Information Grid */}
@@ -505,7 +631,10 @@ export default function TeacherSettingsModal({
                           className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-xs shadow-md shadow-indigo-200 flex items-center gap-2 cursor-pointer disabled:bg-indigo-400 transition-all"
                         >
                           {saving ? (
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Đang tải ảnh &amp; lưu...</span>
+                            </>
                           ) : (
                             <>
                               <Save className="w-3.5 h-3.5" />

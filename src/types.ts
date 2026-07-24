@@ -108,6 +108,7 @@ export interface User {
   id: string;
   name: string;
   email?: string;
+  photoURL?: string;
   studentCode?: string;
   role: "teacher" | "student";
   classId?: string;

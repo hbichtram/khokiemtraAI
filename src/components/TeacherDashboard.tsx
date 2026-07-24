@@ -103,8 +103,12 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
             className="w-full text-left bg-slate-900 hover:bg-slate-800/80 p-4 rounded-2xl mb-6 flex items-center justify-between gap-3 border border-slate-800/80 transition-all cursor-pointer group"
           >
             <div className="flex items-center gap-3 overflow-hidden">
-              <div className="bg-gradient-to-br from-indigo-500 to-purple-500 text-white w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shadow-sm shrink-0">
-                {user.name ? user.name.charAt(0).toUpperCase() : "G"}
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-500 text-white w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shadow-sm shrink-0 overflow-hidden">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" />
+                ) : (
+                  user.name ? user.name.charAt(0).toUpperCase() : "G"
+                )}
               </div>
               <div className="overflow-hidden">
                 <h4 className="font-bold text-sm text-slate-100 leading-tight truncate group-hover:text-indigo-300 transition-colors">
@@ -212,8 +216,12 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
               onClick={() => setIsAccountMenuOpen(!isAccountMenuOpen)}
               className="flex items-center gap-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 p-2 pr-3.5 rounded-2xl transition-all cursor-pointer shadow-xs active:scale-95"
             >
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-sm flex items-center justify-center shadow-sm">
-                {user.name ? user.name.charAt(0).toUpperCase() : "G"}
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-sm flex items-center justify-center shadow-sm overflow-hidden shrink-0">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" />
+                ) : (
+                  user.name ? user.name.charAt(0).toUpperCase() : "G"
+                )}
               </div>
               <div className="text-left hidden sm:block">
                 <span className="font-extrabold text-xs text-slate-800 block truncate max-w-[160px]">
@@ -233,10 +241,19 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
                 <div className="fixed inset-0 z-20" onClick={() => setIsAccountMenuOpen(false)} />
 
                 <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-100 rounded-3xl shadow-2xl z-30 p-2 animate-fadeIn space-y-1">
-                  <div className="p-3 border-b border-slate-100 bg-slate-50/80 rounded-2xl mb-1">
-                    <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Giáo viên hiện tại</span>
-                    <strong className="font-black text-xs text-slate-800 block mt-0.5 truncate">👤 {user.name || "Giáo viên"}</strong>
-                    <span className="text-[10px] text-slate-500 block truncate">{user.email}</span>
+                  <div className="p-3 border-b border-slate-100 bg-slate-50/80 rounded-2xl mb-1 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black text-sm flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt={user.name} className="w-full h-full object-cover" />
+                      ) : (
+                        user.name ? user.name.charAt(0).toUpperCase() : "G"
+                      )}
+                    </div>
+                    <div className="overflow-hidden">
+                      <span className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider block">Giáo viên hiện tại</span>
+                      <strong className="font-black text-xs text-slate-800 block mt-0.5 truncate">{user.name || "Giáo viên"}</strong>
+                      <span className="text-[10px] text-slate-500 block truncate">{user.email}</span>
+                    </div>
                   </div>
 
                   <button
