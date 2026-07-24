@@ -13,6 +13,23 @@ import {
   fsUpdateExamTitle
 } from "../lib/firestoreData";
 
+// Helper function to normalize grade for filtering & display
+function getDisplayGrade(gradeStr?: string, titleStr?: string): string {
+  if (gradeStr) {
+    const trimmed = gradeStr.trim();
+    if (trimmed === "Tin học 3" || trimmed === "Tin học 4" || trimmed === "Tin học 5") return trimmed;
+    if (trimmed === "Lớp 3" || trimmed.includes("3")) return "Tin học 3";
+    if (trimmed === "Lớp 4" || trimmed.includes("4")) return "Tin học 4";
+    if (trimmed === "Lớp 5" || trimmed.includes("5")) return "Tin học 5";
+  }
+  if (titleStr) {
+    if (titleStr.includes("3")) return "Tin học 3";
+    if (titleStr.includes("4")) return "Tin học 4";
+    if (titleStr.includes("5")) return "Tin học 5";
+  }
+  return "Tin học 3";
+}
+
 interface ExamBankProps {
   onAssignCreated?: () => void;
 }
@@ -23,6 +40,9 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Grade filter state
+  const [selectedGradeFilter, setSelectedGradeFilter] = useState<string>("Tất cả");
 
   // Modals / Selection states
   const [viewingExam, setViewingExam] = useState<Exam | null>(null);
@@ -255,6 +275,11 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
     setEndTime(tomorrowString);
   };
 
+  const filteredExams = exams.filter((exam) => {
+    if (selectedGradeFilter === "Tất cả" || !selectedGradeFilter) return true;
+    return getDisplayGrade(exam.grade, exam.title) === selectedGradeFilter;
+  });
+
   return (
     <div id="exam-bank-root" className="space-y-8 animate-fadeIn">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -266,6 +291,24 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
             Kho Đề Kiểm Tra ({exams.length})
           </h1>
           <p className="text-slate-500 font-medium mt-1">Danh sách các đề thi bạn đã thiết kế biên soạn, sẵn sàng để phục vụ giảng dạy.</p>
+        </div>
+
+        {/* Grade Filter Selector */}
+        <div className="bg-white border border-slate-200/80 shadow-xs p-2.5 rounded-2xl flex items-center gap-3 self-start sm:self-auto">
+          <label htmlFor="select-bank-grade-filter" className="text-xs font-bold text-slate-500 uppercase tracking-wider pl-1.5 whitespace-nowrap">
+            Khối lớp:
+          </label>
+          <select
+            id="select-bank-grade-filter"
+            value={selectedGradeFilter}
+            onChange={(e) => setSelectedGradeFilter(e.target.value)}
+            className="bg-slate-50 hover:bg-slate-100/80 border border-slate-200 text-indigo-900 rounded-xl px-3.5 py-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer transition-all min-w-[140px]"
+          >
+            <option value="Tất cả">Tất cả ({exams.length})</option>
+            <option value="Tin học 3">Tin học 3</option>
+            <option value="Tin học 4">Tin học 4</option>
+            <option value="Tin học 5">Tin học 5</option>
+          </select>
         </div>
       </div>
 
@@ -291,9 +334,25 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
             Hãy lựa chọn tab "Tạo đề AI" để thiết kế đề kiểm tra thông minh đầu tiên của mình cùng trợ lý AI!
           </p>
         </div>
+      ) : filteredExams.length === 0 ? (
+        <div className="bg-white border border-slate-100 rounded-[32px] p-12 text-center shadow-sm space-y-4">
+          <FileText className="w-16 h-16 text-amber-300 mx-auto bg-amber-50 p-3 rounded-2xl" />
+          <div>
+            <h3 className="font-black text-slate-800 text-lg">Không tìm thấy đề thi thuộc khối "{selectedGradeFilter}"</h3>
+            <p className="text-slate-500 font-medium text-sm mt-1">
+              Bạn hiện chưa có bài kiểm tra nào được xếp loại khối này trong tổng số {exams.length} đề thi.
+            </p>
+          </div>
+          <button
+            onClick={() => setSelectedGradeFilter("Tất cả")}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-all cursor-pointer shadow-sm"
+          >
+            Hiển thị tất cả ({exams.length} đề)
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {exams.map((exam) => (
+          {filteredExams.map((exam) => (
             <div
               key={exam.id}
               className="bg-white border border-slate-100 hover:border-indigo-200 hover:shadow-xl hover:shadow-slate-200/40 rounded-[28px] p-6 transition-all flex flex-col justify-between space-y-4 shadow-sm"
@@ -301,7 +360,7 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
               <div className="space-y-3">
                 <div className="flex justify-between items-start gap-2">
                   <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold px-3 py-1 rounded-xl">
-                    {exam.grade}
+                    {getDisplayGrade(exam.grade, exam.title)}
                   </span>
                   <div className="flex items-center gap-1.5">
                     <button
@@ -381,7 +440,7 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
             <div className="flex justify-between items-start border-b border-slate-100 p-6 bg-slate-50/50 rounded-t-[32px]">
               <div className="flex-1 pr-4">
                 <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-xl">
-                  {viewingExam.grade}
+                  {getDisplayGrade(viewingExam.grade, viewingExam.title)}
                 </span>
                 <div className="flex items-center gap-2 mt-2.5">
                   <h3 className="font-black text-xl text-slate-900 leading-snug">{viewingExam.title}</h3>

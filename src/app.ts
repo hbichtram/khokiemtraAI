@@ -1189,7 +1189,7 @@ const handleParseFile = async (req: express.Request, res: express.Response) => {
         console.log(`[File Parser Server] Successfully parsed JSON file with ${formattedQuestions.length} questions`);
         return res.json({
           title: parsed.title || (fileName ? fileName.replace(/\.[^/.]+$/, "") : "Đề thi từ tệp JSON"),
-          grade: parsed.grade || "Lớp 3",
+          grade: parsed.grade || "Tin học 3",
           topic: parsed.topic || "Kiểm tra tổng hợp",
           questions: formattedQuestions
         });
@@ -1213,7 +1213,7 @@ Hãy đọc kỹ nội dung tệp đề thi dưới đây và phân tích chính
 Yêu cầu output JSON duy nhất:
 {
   "title": "Tên bài kiểm tra (trích xuất hoặc tự đặt phù hợp)",
-  "grade": "Khối lớp (Lớp 3, Lớp 4, hoặc Lớp 5)",
+  "grade": "Khối lớp (Tin học 3, Tin học 4, hoặc Tin học 5)",
   "topic": "Chủ đề bài học",
   "questions": [
     {
@@ -1259,7 +1259,7 @@ ${textToParse.slice(0, 15000)}
           console.log(`[File Parser Server] Gemini parsed ${formattedQuestions.length} questions successfully`);
           return res.json({
             title: parsedData.title || (fileName ? fileName.replace(/\.[^/.]+$/, "") : "Đề thi từ tệp tải lên"),
-            grade: parsedData.grade || "Lớp 3",
+            grade: parsedData.grade || "Tin học 3",
             topic: parsedData.topic || "Kiểm tra tổng hợp",
             questions: formattedQuestions
           });
