@@ -463,21 +463,24 @@ export async function fsDeleteExam(examId: string): Promise<void> {
 // ==========================================
 export async function fsGetAssignmentsDetailed(teacherId?: string): Promise<any[]> {
   const data = await getAppData();
-  let list = data.assignments;
-  if (teacherId) {
-    list = list.filter((asg) => !asg.teacherId || asg.teacherId === teacherId);
+  let list = data.assignments || [];
+  if (teacherId && teacherId !== "teacher-default") {
+    list = list.filter((asg) => !asg.teacherId || asg.teacherId === teacherId || asg.teacherId === "teacher-default");
   }
 
   return list.map((asg) => {
-    const exam = data.exams.find((e) => e.id === asg.examId);
-    const cls = data.classes.find((c) => c.id === asg.classId);
+    const exam = (data.exams || []).find((e) => e.id === asg.examId);
+    const cls = (data.classes || []).find((c) => c.id === asg.classId);
+    const submissions = (data.submissions || []).filter(
+      (s) => s.assignmentId === asg.id && (s.status === "submitted" || !s.status || s.score !== undefined)
+    );
     return {
       ...asg,
       examTitle: exam ? exam.title : "Đề thi không tồn tại",
       examDuration: exam ? exam.duration : 15,
       className: cls ? cls.name : "Lớp không tồn tại",
-      totalStudents: cls ? cls.students.length : 0,
-      submissionCount: data.submissions.filter((s) => s.assignmentId === asg.id && (s.status === "submitted" || !s.status)).length
+      totalStudents: cls && cls.students ? cls.students.length : 0,
+      submissionCount: submissions.length
     };
   });
 }
@@ -581,64 +584,125 @@ export async function fsGetTeacherOverview(): Promise<any> {
 // ==========================================
 export async function fsGetAssignmentReport(assignmentId: string): Promise<any> {
   const data = await getAppData();
-  const assignment = data.assignments.find((a) => a.id === assignmentId);
+  const assignment = (data.assignments || []).find((a) => a.id === assignmentId);
   if (!assignment) throw new Error("Không tìm thấy bài giao.");
 
-  const exam = data.exams.find((e) => e.id === assignment.examId);
-  const cls = data.classes.find((c) => c.id === assignment.classId);
+  const exam = (data.exams || []).find((e) => e.id === assignment.examId);
+  const cls = (data.classes || []).find((c) => c.id === assignment.classId);
   if (!exam || !cls) throw new Error("Đề thi hoặc lớp học không tồn tại.");
 
   const classStudents = cls.students || [];
-  const assignmentSubmissions = data.submissions.filter((s) => s.assignmentId === assignmentId);
+  const assignmentSubmissions = (data.submissions || []).filter(
+    (s) => s.assignmentId === assignmentId && (s.status === "submitted" || !s.status || s.score !== undefined)
+  );
 
-  const studentReports = classStudents.map((student) => {
-    const sub = assignmentSubmissions.find((s) => s.studentId === student.id || (student.studentCode && (s as any).studentCode === student.studentCode));
-    const isSubmitted = sub && (sub.status === "submitted" || !sub.status);
+  const studentResults = classStudents.map((student) => {
+    const sub = assignmentSubmissions.find((s) => 
+      s.studentId === student.id || 
+      (student.studentCode && s.studentId && s.studentId.toUpperCase() === student.studentCode.toUpperCase()) ||
+      (student.studentCode && (s as any).studentCode && (s as any).studentCode.toUpperCase() === student.studentCode.toUpperCase()) ||
+      (student.id && (s as any).studentCode && (s as any).studentCode === student.id)
+    );
+    const isSubmitted = !!sub;
 
     return {
       studentId: student.id,
       studentName: student.name,
       studentCode: student.studentCode,
-      status: isSubmitted ? "Đã nộp" : "Chưa nộp",
+      status: isSubmitted ? "Đã nộp" : "Chưa làm",
       submissionId: isSubmitted ? sub.id : null,
       score: isSubmitted ? sub.score : null,
       submittedAt: isSubmitted ? sub.submittedAt : null,
+      duration: isSubmitted ? sub.duration : null,
       correctCount: isSubmitted ? sub.correctCount : null,
       wrongCount: isSubmitted ? sub.wrongCount : null
     };
   });
 
-  const submittedCount = studentReports.filter((s) => s.status === "Đã nộp").length;
-  const submittedScores = studentReports.filter((s) => s.score !== null).map((s) => s.score as number);
+  const submittedResults = studentResults.filter((s) => s.status === "Đã nộp");
+  const submissionCount = submittedResults.length;
+  const pendingCount = classStudents.length - submissionCount;
 
   let averageScore = 0;
-  let highestScore = 0;
-  let lowestScore = 0;
+  let maxScore = 0;
+  let minScore = 0;
+  let completionRate = 0;
+  let averageCorrectRate = 0;
 
-  if (submittedScores.length > 0) {
-    averageScore = Number((submittedScores.reduce((a, b) => a + b, 0) / submittedScores.length).toFixed(1));
-    highestScore = Math.max(...submittedScores);
-    lowestScore = Math.min(...submittedScores);
+  if (classStudents.length > 0) {
+    completionRate = Number(((submissionCount / classStudents.length) * 100).toFixed(1));
   }
 
+  if (submissionCount > 0) {
+    const validScores = submittedResults.map((s) => s.score!).filter((sc) => typeof sc === "number");
+    if (validScores.length > 0) {
+      const sum = validScores.reduce((a, b) => a + b, 0);
+      averageScore = Number((sum / validScores.length).toFixed(1));
+      maxScore = Math.max(...validScores);
+      minScore = Math.min(...validScores);
+    }
+
+    if (exam.questions && exam.questions.length > 0) {
+      const totalCorrect = submittedResults.reduce((sum, s) => sum + (s.correctCount || 0), 0);
+      const totalPossible = submissionCount * exam.questions.length;
+      averageCorrectRate = Number(((totalCorrect / totalPossible) * 100).toFixed(1));
+    }
+  }
+
+  const questionAnalysis = (exam.questions || []).map((q, qIdx) => {
+    let correctCount = 0;
+    let wrongCount = 0;
+    assignmentSubmissions.forEach((sub) => {
+      if (sub.answers) {
+        const studentAns = sub.answers[q.id] || "";
+        if (studentAns && studentAns.toUpperCase() === q.correctAnswer.toUpperCase()) {
+          correctCount++;
+        } else if (studentAns) {
+          wrongCount++;
+        }
+      }
+    });
+    const totalAnswers = correctCount + wrongCount;
+    const correctRate = totalAnswers > 0 ? Number(((correctCount / totalAnswers) * 100).toFixed(0)) : 0;
+    return {
+      id: q.id,
+      index: qIdx + 1,
+      questionText: q.question,
+      correctCount,
+      wrongCount,
+      correctRate,
+      correctAnswer: q.correctAnswer
+    };
+  });
+
   return {
-    assignmentInfo: {
+    assignment: {
       id: assignment.id,
-      examTitle: exam.title,
-      className: cls.name,
-      totalStudents: classStudents.length,
-      submittedCount,
       startTime: assignment.startTime,
       endTime: assignment.endTime,
       status: assignment.status
     },
+    exam: {
+      id: exam.id,
+      title: exam.title,
+      questionCount: (exam.questions || []).length,
+      questions: exam.questions || []
+    },
+    classInfo: {
+      id: cls.id,
+      name: cls.name,
+      totalStudents: classStudents.length
+    },
     stats: {
       averageScore,
-      highestScore,
-      lowestScore,
-      submittedCount,
-      unsubmittedCount: classStudents.length - submittedCount
+      submissionCount,
+      pendingCount,
+      maxScore,
+      minScore,
+      completionRate,
+      averageCorrectRate
     },
-    students: studentReports
+    studentResults,
+    questionAnalysis
   };
 }

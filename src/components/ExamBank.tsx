@@ -136,6 +136,7 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
             classId: selectedClassId,
             startTime: startIso,
             endTime: endIso,
+            teacherId: assigningExam.teacherId || "teacher-default"
           }),
         });
 
@@ -148,7 +149,7 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
       }
 
       if (!assigned) {
-        await fsCreateAssignment(assigningExam.id, selectedClassId, startIso, endIso);
+        await fsCreateAssignment(assigningExam.id, selectedClassId, startIso, endIso, assigningExam.teacherId || "teacher-default");
       }
 
       setSuccess("Đã giao đề kiểm tra thành công tới lớp học!");
