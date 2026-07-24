@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Question } from "../types";
+import { Question, QuestionOption, getOptionText, getOptionImage } from "../types";
 import { 
   Timer, ChevronLeft, ChevronRight, CheckCircle, 
   HelpCircle, AlertCircle, RefreshCw 
@@ -417,16 +417,30 @@ export default function StudentExamScreen({
             <span className="bg-slate-900 text-white text-xs font-black px-3 py-1.5 rounded-xl shrink-0 mt-0.5">
               Câu {currentIdx + 1}
             </span>
-            <p className="font-black text-slate-900 text-base md:text-lg leading-relaxed pt-0.5">
-              {currentQuestion.question}
-            </p>
+            <div className="space-y-3 flex-1">
+              <p className="font-black text-slate-900 text-base md:text-lg leading-relaxed pt-0.5">
+                {currentQuestion.question}
+              </p>
+              {currentQuestion.imageUrl && (
+                <div className="mt-2">
+                  <img
+                    src={currentQuestion.imageUrl}
+                    alt="Hình minh họa câu hỏi"
+                    className="max-h-60 object-contain rounded-2xl border border-slate-200 bg-white p-1 shadow-xs"
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Options grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {currentQuestion.options.map((opt: string, oIdx: number) => {
+            {currentQuestion.options.map((opt: any, oIdx: number) => {
               const letter = ["A", "B", "C", "D"][oIdx];
               const isSelected = answers[currentQuestion.id] === letter;
+              const optText = getOptionText(opt);
+              const optImg = getOptionImage(opt, currentQuestion, oIdx);
+
               return (
                 <button
                   key={oIdx}
@@ -445,7 +459,12 @@ export default function StudentExamScreen({
                   }`}>
                     {letter}
                   </span>
-                  <span className="font-bold text-sm md:text-base leading-normal">{opt}</span>
+                  <div className="flex-1 space-y-1">
+                    <span className="font-bold text-sm md:text-base leading-normal">{optText}</span>
+                    {optImg && (
+                      <img src={optImg} alt="" className="h-12 w-12 object-cover rounded-xl border border-slate-200 mt-1" />
+                    )}
+                  </div>
                 </button>
               );
             })}

@@ -15,14 +15,35 @@ export interface Class {
   students: Student[];
 }
 
+export interface QuestionOption {
+  text: string;
+  imageUrl?: string;
+}
+
 export interface Question {
   id: string;
   question: string;
-  options: string[];
+  imageUrl?: string;
+  options: (string | QuestionOption)[];
+  optionImages?: string[];
   correctAnswer: string;
   explanation: string;
-  keyPoint: string;
+  keyPoint?: string;
   difficulty: "Nhận biết" | "Thông hiểu" | "Vận dụng";
+}
+
+export function getOptionText(opt: string | QuestionOption): string {
+  if (typeof opt === "string") return opt;
+  if (opt && typeof opt === "object") return opt.text || "";
+  return String(opt || "");
+}
+
+export function getOptionImage(opt: string | QuestionOption, q?: Question, index?: number): string | undefined {
+  if (opt && typeof opt === "object" && opt.imageUrl) return opt.imageUrl;
+  if (q && q.optionImages && typeof index === "number" && q.optionImages[index]) {
+    return q.optionImages[index];
+  }
+  return undefined;
 }
 
 export interface Exam {

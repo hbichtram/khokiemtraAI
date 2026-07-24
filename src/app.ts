@@ -21,7 +21,8 @@ const firebaseApp = initializeApp(firebaseConfig);
 const firestoreDb = getFirestore(firebaseApp);
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "20mb" }));
+app.use(express.urlencoded({ limit: "20mb", extended: true }));
 
 // Enable CORS for all incoming requests (Vercel Production & Local)
 app.use((req, res, next) => {
@@ -1087,7 +1088,204 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
   }
 };
 
+const handleParseFile = async (req: express.Request, res: express.Response) => {
+  try {
+    const { fileName, fileType, textContent, fileData } = req.body;
+
+    // Check if JSON file
+    if (fileType === "json" || (fileName && String(fileName).toLowerCase().endsWith(".json"))) {
+      let parsed: any = null;
+      if (typeof textContent === "object" && textContent !== null) {
+        parsed = textContent;
+      } else if (typeof textContent === "string" && textContent.trim()) {
+        try {
+          parsed = JSON.parse(textContent);
+        } catch (e) {}
+      } else if (fileData) {
+        try {
+          const decoded = Buffer.from(fileData, "base64").toString("utf-8");
+          parsed = JSON.parse(decoded);
+        } catch (e) {}
+      }
+
+      if (parsed) {
+        const questionsList = Array.isArray(parsed) ? parsed : (parsed.questions || []);
+        const formattedQuestions = questionsList.map((q: any, idx: number) => ({
+          id: q.id || `q-parsed-${Date.now()}-${idx}`,
+          question: q.question || q.questionText || `Câu hỏi ${idx + 1}`,
+          imageUrl: q.imageUrl || q.image || undefined,
+          options: Array.isArray(q.options) 
+            ? q.options.map((opt: any) => {
+                if (typeof opt === "object" && opt !== null) {
+                  return { text: cleanOptionText(opt.text || ""), imageUrl: opt.imageUrl };
+                }
+                return cleanOptionText(String(opt || ""));
+              })
+            : ["Phương án A", "Phương án B", "Phương án C", "Phương án D"],
+          correctAnswer: normalizeCorrectAnswer(q.correctAnswer || "A"),
+          explanation: q.explanation || "Giải thích cho đáp án đúng.",
+          keyPoint: q.keyPoint || "Kiến thức trọng tâm ghi nhớ.",
+          difficulty: ["Nhận biết", "Thông hiểu", "Vận dụng"].includes(q.difficulty) ? q.difficulty : "Nhận biết"
+        }));
+
+        return res.json({
+          title: parsed.title || (fileName ? fileName.replace(/\.[^/.]+$/, "") : "Đề thi từ tệp JSON"),
+          grade: parsed.grade || "Lớp 3",
+          topic: parsed.topic || "Kiểm tra tổng hợp",
+          questions: formattedQuestions
+        });
+      }
+    }
+
+    // For TXT, DOCX, PDF
+    let textToParse = textContent || "";
+    if (!textToParse && fileData) {
+      try {
+        textToParse = Buffer.from(fileData, "base64").toString("utf-8");
+      } catch (e) {}
+    }
+
+    // Call Gemini AI parser if available
+    const aiClient = getGeminiClient();
+    if (aiClient && textToParse.length > 5) {
+      const prompt = `Bạn là một chuyên gia phân tích và trích xuất đề thi trắc nghiệm tiếng Việt.
+Hãy đọc kỹ nội dung tệp đề thi dưới đây và phân tích chính xác toàn bộ các câu hỏi.
+
+Yêu cầu output JSON duy nhất:
+{
+  "title": "Tên bài kiểm tra (trích xuất hoặc tự đặt phù hợp)",
+  "grade": "Khối lớp (Lớp 3, Lớp 4, hoặc Lớp 5)",
+  "topic": "Chủ đề bài học",
+  "questions": [
+    {
+      "question": "Nội dung câu hỏi đầy đủ",
+      "imageUrl": "URL hình ảnh nếu có trong câu",
+      "options": ["Nội dung A", "Nội dung B", "Nội dung C", "Nội dung D"],
+      "correctAnswer": "A",
+      "explanation": "Giải thích chi tiết vì sao đáp án này đúng",
+      "keyPoint": "Ghi nhớ kiến thức chính",
+      "difficulty": "Nhận biết"
+    }
+  ]
+}
+
+Nội dung đề thi:
+"""
+${textToParse.slice(0, 15000)}
+"""`;
+
+      try {
+        const response = await generateContentWithRetry({
+          model: "gemini-3.6-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json"
+          }
+        });
+        const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+        const parsedData = parseAIResponseJSON(rawText);
+
+        if (parsedData && Array.isArray(parsedData.questions) && parsedData.questions.length > 0) {
+          const formattedQuestions = parsedData.questions.map((q: any, idx: number) => ({
+            id: `q-parsed-${Date.now()}-${idx}`,
+            question: q.question || `Câu hỏi ${idx + 1}`,
+            imageUrl: q.imageUrl || undefined,
+            options: extractOptionsList(q.options),
+            correctAnswer: normalizeCorrectAnswer(q.correctAnswer),
+            explanation: q.explanation || "Giải thích đáp án đúng.",
+            keyPoint: q.keyPoint || "Kiến thức học sinh cần ghi nhớ.",
+            difficulty: ["Nhận biết", "Thông hiểu", "Vận dụng"].includes(q.difficulty) ? q.difficulty : "Nhận biết"
+          }));
+
+          return res.json({
+            title: parsedData.title || (fileName ? fileName.replace(/\.[^/.]+$/, "") : "Đề thi từ tệp tải lên"),
+            grade: parsedData.grade || "Lớp 3",
+            topic: parsedData.topic || "Kiểm tra tổng hợp",
+            questions: formattedQuestions
+          });
+        }
+      } catch (aiErr) {
+        console.warn("Gemini file parsing fallback to regex:", aiErr);
+      }
+    }
+
+    // Fallback regex parser for standard Vietnamese text
+    const lines = textToParse.split("\n").map((l: string) => l.trim()).filter(Boolean);
+    const questions: any[] = [];
+    let currentQ: any = null;
+
+    for (const line of lines) {
+      const qMatch = line.match(/^(?:Câu|Câu hỏi|Question)\s*(\d+)[\.\:\-]\s*(.*)$/i);
+      if (qMatch) {
+        if (currentQ && currentQ.question) {
+          questions.push(currentQ);
+        }
+        currentQ = {
+          id: `q-parsed-${Date.now()}-${questions.length}`,
+          question: qMatch[2] || line,
+          options: [],
+          correctAnswer: "A",
+          explanation: "Giải thích đáp án đúng.",
+          keyPoint: "Ghi nhớ kiến thức.",
+          difficulty: "Nhận biết"
+        };
+        continue;
+      }
+
+      const optMatch = line.match(/^([A-Da-d])[\.\)\:\-]\s*(.*)$/);
+      if (optMatch && currentQ) {
+        currentQ.options.push(optMatch[2] || line);
+        continue;
+      }
+
+      const ansMatch = line.match(/^(?:Đáp án|Đáp án đúng|Correct)[\.\:\-]\s*([A-Da-d])/i);
+      if (ansMatch && currentQ) {
+        currentQ.correctAnswer = ansMatch[1].toUpperCase();
+        continue;
+      }
+
+      const expMatch = line.match(/^(?:Giải thích|Hướng dẫn|Lời giải)[\.\:\-]\s*(.*)$/i);
+      if (expMatch && currentQ) {
+        currentQ.explanation = expMatch[1];
+        continue;
+      }
+
+      if (currentQ && currentQ.options.length === 0) {
+        currentQ.question += " " + line;
+      }
+    }
+
+    if (currentQ && currentQ.question) {
+      questions.push(currentQ);
+    }
+
+    if (questions.length > 0) {
+      const formatted = questions.map((q) => ({
+        ...q,
+        options: extractOptionsList(q.options),
+        correctAnswer: normalizeCorrectAnswer(q.correctAnswer)
+      }));
+      return res.json({
+        title: fileName ? fileName.replace(/\.[^/.]+$/, "") : "Đề thi trích xuất từ tệp",
+        grade: "Lớp 3",
+        topic: "Nội dung bài học",
+        questions: formatted
+      });
+    }
+
+    return res.status(400).json({
+      error: "Không thể nhận diện câu hỏi từ tệp này. Vui lòng kiểm tra lại nội dung tệp."
+    });
+  } catch (err: any) {
+    console.error("Parse file error:", err);
+    return res.status(500).json({ error: err.message || "Lỗi khi xử lý tệp đề thi." });
+  }
+};
+
 // Register AI routes across multiple subpaths
+app.post("/api/exams/parse-file", handleParseFile);
+app.post("/exams/parse-file", handleParseFile);
+
 app.post("/api/exams/generate", handleGenerateExam);
 app.post("/exams/generate", handleGenerateExam);
 app.post("/api/generate", handleGenerateExam);

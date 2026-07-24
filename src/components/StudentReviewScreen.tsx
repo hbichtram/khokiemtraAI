@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getOptionText, getOptionImage } from "../types";
 import Footer from "./Footer";
 import { 
   Award, RefreshCw, AlertCircle, ArrowLeft, Check, 
@@ -306,17 +307,30 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
                   </span>
                 </div>
 
-                {/* Question Text */}
-                <h3 className="font-black text-slate-900 text-base md:text-lg leading-relaxed pt-1">
-                  {q.question}
-                </h3>
+                {/* Question Text & Image */}
+                <div className="space-y-3">
+                  <h3 className="font-black text-slate-900 text-base md:text-lg leading-relaxed pt-1">
+                    {q.question}
+                  </h3>
+                  {q.imageUrl && (
+                    <div>
+                      <img
+                        src={q.imageUrl}
+                        alt="Hình minh họa câu hỏi"
+                        className="max-h-56 object-contain rounded-2xl border border-slate-200 bg-white p-1"
+                      />
+                    </div>
+                  )}
+                </div>
 
                 {/* Options visual mapping */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
-                  {q.options.map((opt: string, oIdx: number) => {
+                  {q.options.map((opt: any, oIdx: number) => {
                     const letter = letterMapping[oIdx];
                     const isSelected = q.studentAnswer === letter;
                     const isCorrectAnswer = q.correctAnswer === letter;
+                    const optText = getOptionText(opt);
+                    const optImg = getOptionImage(opt, q, oIdx);
 
                     let blockStyle = "bg-white border-slate-100 text-slate-600";
                     let badgeStyle = "bg-slate-100 text-slate-500";
@@ -340,7 +354,12 @@ export default function StudentReviewScreen({ submissionId, onBackToDashboard }:
                         <span className={`w-7 h-7 rounded-xl font-black text-xs flex items-center justify-center shrink-0 ${badgeStyle}`}>
                           {letter}
                         </span>
-                        <span className="font-bold">{opt}</span>
+                        <div className="flex-1 space-y-1">
+                          <span className="font-bold">{optText}</span>
+                          {optImg && (
+                            <img src={optImg} alt="" className="h-10 w-10 object-cover rounded-lg border border-slate-200 mt-1" />
+                          )}
+                        </div>
                         {statusLabel && (
                           <span className="ml-auto text-[9px] uppercase font-black tracking-wider bg-slate-900/5 px-2 py-0.5 rounded-lg shrink-0">
                             {statusLabel}
