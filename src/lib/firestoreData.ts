@@ -682,6 +682,9 @@ export async function fsGetAssignmentReport(assignmentId: string): Promise<any> 
     completionRate = Number(((submissionCount / classStudents.length) * 100).toFixed(1));
   }
 
+  let passCount = 0;
+  let failCount = 0;
+
   if (submissionCount > 0) {
     const validScores = submittedResults.map((s) => s.score!).filter((sc) => typeof sc === "number");
     if (validScores.length > 0) {
@@ -689,6 +692,8 @@ export async function fsGetAssignmentReport(assignmentId: string): Promise<any> 
       averageScore = Number((sum / validScores.length).toFixed(1));
       maxScore = Math.max(...validScores);
       minScore = Math.min(...validScores);
+      passCount = validScores.filter((sc) => sc >= 5).length;
+      failCount = validScores.filter((sc) => sc < 5).length;
     }
 
     if (exam.questions && exam.questions.length > 0) {
@@ -749,7 +754,9 @@ export async function fsGetAssignmentReport(assignmentId: string): Promise<any> 
       maxScore,
       minScore,
       completionRate,
-      averageCorrectRate
+      averageCorrectRate,
+      passCount,
+      failCount
     },
     studentResults,
     questionAnalysis

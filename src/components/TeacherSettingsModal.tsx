@@ -9,7 +9,7 @@ import {
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { updatePassword } from "firebase/auth";
 import { auth, db as firestoreDb } from "../firebase";
-import { uploadImageFile } from "../lib/imageStorage";
+import { uploadImageFile, uploadAvatarFile } from "../lib/imageStorage";
 
 interface TeacherSettingsModalProps {
   isOpen: boolean;
@@ -149,6 +149,8 @@ export default function TeacherSettingsModal({
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
+
     setProfileError(null);
     setProfileSuccess(null);
 
@@ -162,10 +164,10 @@ export default function TeacherSettingsModal({
     try {
       let finalPhotoURL = photoURL;
 
-      // 1. Upload new image file if selected
+      // 1. Upload new avatar image only if selected by user
       if (selectedFile) {
         try {
-          finalPhotoURL = await uploadImageFile(selectedFile);
+          finalPhotoURL = await uploadAvatarFile(selectedFile);
         } catch (uploadErr: any) {
           console.error("Upload avatar error:", uploadErr);
           setProfileError(uploadErr?.message || "Không thể tải ảnh đại diện lên. Vui lòng kiểm tra lại.");

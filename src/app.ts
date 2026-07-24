@@ -1826,6 +1826,9 @@ app.get("/api/reports/assignment/:assignmentId", (req, res) => {
     completionRate = Number(((submissionCount / cls.students.length) * 100).toFixed(1));
   }
 
+  let passCount = 0;
+  let failCount = 0;
+
   if (submissionCount > 0) {
     const validScores = submittedResults.map((r) => r.score!).filter((s) => typeof s === "number");
     if (validScores.length > 0) {
@@ -1833,6 +1836,8 @@ app.get("/api/reports/assignment/:assignmentId", (req, res) => {
       averageScore = Number((sum / validScores.length).toFixed(1));
       maxScore = Math.max(...validScores);
       minScore = Math.min(...validScores);
+      passCount = validScores.filter((s) => s >= 5).length;
+      failCount = validScores.filter((s) => s < 5).length;
     }
 
     if (exam.questions && exam.questions.length > 0) {
@@ -1893,7 +1898,9 @@ app.get("/api/reports/assignment/:assignmentId", (req, res) => {
       maxScore,
       minScore,
       completionRate,
-      averageCorrectRate
+      averageCorrectRate,
+      passCount,
+      failCount
     },
     studentResults: results,
     questionAnalysis
