@@ -46,6 +46,14 @@ export function getOptionImage(opt: string | QuestionOption, q?: Question, index
   return undefined;
 }
 
+export const ELEMENTARY_GRADES = [
+  "Tin học 3",
+  "Tin học 4",
+  "Tin học 5"
+] as const;
+
+export type ElementaryGrade = typeof ELEMENTARY_GRADES[number];
+
 export interface Exam {
   id: string;
   teacherId: string;

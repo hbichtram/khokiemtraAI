@@ -11,6 +11,7 @@ import {
   fsGetClasses,
   fsCreateClass,
   fsDeleteClass,
+  fsUpdateClassName,
   fsAddStudent,
   fsAddStudentsBulk,
   fsUpdateStudent,
@@ -27,6 +28,11 @@ export default function ClassManager() {
   // New Class Form
   const [newClassName, setNewClassName] = useState("");
   const [showAddClass, setShowAddClass] = useState(false);
+
+  // Edit Class Form State
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
+  const [editingClassName, setEditingClassName] = useState("");
+  const [savingClassName, setSavingClassName] = useState(false);
 
   // Student Form
   const [showAddStudent, setShowAddStudent] = useState(false);
@@ -364,6 +370,63 @@ export default function ClassManager() {
     }
   };
 
+  const handleStartEditClassName = (cls: Class) => {
+    setEditingClass(cls);
+    setEditingClassName(cls.name);
+  };
+
+  const handleSaveClassName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClass) return;
+
+    const cleanName = editingClassName.trim();
+    if (!cleanName) {
+      setError("Tên lớp học không được để trống!");
+      return;
+    }
+
+    setSavingClassName(true);
+    setError(null);
+
+    try {
+      let updatedClass: Class | null = null;
+      try {
+        const res = await fetch(`/api/classes/${editingClass.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: cleanName })
+        });
+        if (res.ok) {
+          updatedClass = await res.json();
+        }
+      } catch (fetchErr) {
+        console.warn("API update class failed, falling back to Firestore:", fetchErr);
+      }
+
+      if (!updatedClass) {
+        updatedClass = await fsUpdateClassName(editingClass.id, cleanName);
+      }
+
+      setClasses((prevClasses) =>
+        prevClasses.map((c) => (c.id === editingClass.id ? { ...c, name: cleanName } : c))
+      );
+
+      if (selectedClass && selectedClass.id === editingClass.id) {
+        setSelectedClass((prev) => (prev ? { ...prev, name: cleanName } : null));
+      }
+
+      setSuccess(`Đã cập nhật tên lớp học thành "${cleanName}"!`);
+      setTimeout(() => setSuccess(null), 3000);
+
+      setEditingClass(null);
+      setEditingClassName("");
+    } catch (err: any) {
+      setError(err.message || "Lỗi khi cập nhật tên lớp học.");
+    } finally {
+      setSavingClassName(false);
+    }
+  };
+
   const handleDeleteClass = (classId: string, name: string) => {
     console.log("DELETE_BUTTON_CLICKED", { classId, name });
     setClassToDelete({ id: classId, name });
@@ -581,18 +644,38 @@ export default function ClassManager() {
                       <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold px-3 py-1 rounded-xl">
                         Mã kết nối: {cls.classCode}
                       </span>
-                      <button
-                        onClick={() => handleDeleteClass(cls.id, cls.name)}
-                        className="text-slate-400 hover:text-rose-600 p-1.5 bg-slate-50 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
-                        title="Xóa lớp học"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          id={`btn-edit-class-${cls.id}`}
+                          onClick={() => handleStartEditClassName(cls)}
+                          className="text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100/80 border border-indigo-100 p-1.5 px-2 rounded-xl transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold shadow-2xs"
+                          title="Chỉnh sửa tên lớp"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Sửa tên</span>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClass(cls.id, cls.name)}
+                          className="text-slate-400 hover:text-rose-600 p-1.5 bg-slate-50 hover:bg-rose-50 rounded-xl transition-all cursor-pointer"
+                          title="Xóa lớp học"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                     <div>
-                      <h3 className="font-black text-slate-900 text-lg leading-tight hover:text-indigo-600 transition-all">
-                        {cls.name}
-                      </h3>
+                      <div className="flex items-start justify-between gap-2 group">
+                        <h3 className="font-black text-slate-900 text-lg leading-tight hover:text-indigo-600 transition-all flex-1">
+                          {cls.name}
+                        </h3>
+                        <button
+                          onClick={() => handleStartEditClassName(cls)}
+                          className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer shrink-0"
+                          title="Chỉnh sửa tên lớp"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                      </div>
                       <p className="text-slate-500 font-bold text-xs flex items-center gap-1.5 mt-2">
                         <Users className="w-4 h-4 text-indigo-500" />
                         Sĩ số: <strong className="text-slate-900">{cls.students?.length || 0}</strong> học sinh
@@ -627,7 +710,18 @@ export default function ClassManager() {
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div>
-                <h2 className="font-black text-xl text-slate-900 tracking-tight leading-tight">{selectedClass.name}</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="font-black text-xl text-slate-900 tracking-tight leading-tight">{selectedClass.name}</h2>
+                  <button
+                    id="btn-edit-selected-class-name"
+                    onClick={() => handleStartEditClassName(selectedClass)}
+                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-xl border border-indigo-100 transition-all cursor-pointer flex items-center gap-1 text-xs font-bold shrink-0 shadow-2xs"
+                    title="Sửa tên lớp"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>Sửa tên lớp</span>
+                  </button>
+                </div>
                 <div className="flex items-center gap-2 mt-1.5">
                   <span className="text-slate-500 text-xs font-bold">
                     Mã kết nối lớp: <strong className="text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-lg border border-indigo-100 font-mono text-sm">{selectedClass.classCode}</strong>
@@ -1207,6 +1301,70 @@ export default function ClassManager() {
                 Xóa học sinh
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Class Name Modal */}
+      {editingClass && (
+        <div id="modal-edit-class-name" className="fixed inset-0 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl animate-scaleUp border border-slate-100 overflow-hidden">
+            <div className="flex justify-between items-center border-b border-slate-100 p-6 bg-slate-50/50">
+              <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-indigo-600" />
+                Chỉnh sửa tên lớp học
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingClass(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 bg-white rounded-xl border border-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveClassName} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Tên lớp học mới *
+                </label>
+                <input
+                  id="input-edit-class-name"
+                  type="text"
+                  required
+                  autoFocus
+                  value={editingClassName}
+                  onChange={(e) => setEditingClassName(e.target.value)}
+                  placeholder="Ví dụ: Lớp 5A - Tin học sáng thứ 3"
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-2xl px-4 py-3.5 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                />
+              </div>
+
+              <div className="bg-indigo-50/60 border border-indigo-100 p-3.5 rounded-2xl text-xs space-y-1 text-indigo-950 font-medium">
+                <p>• Mã kết nối lớp: <strong className="text-indigo-700 font-mono font-bold bg-white px-1.5 py-0.5 rounded border border-indigo-100">{editingClass.classCode}</strong> (Không thay đổi)</p>
+                <p>• Danh sách học sinh: <strong className="text-slate-900 font-bold">{editingClass.students?.length || 0} học sinh</strong> (Được giữ nguyên hoàn toàn)</p>
+              </div>
+
+              <div className="flex gap-3 pt-3 text-xs">
+                <button
+                  type="button"
+                  id="btn-cancel-edit-class-name"
+                  onClick={() => setEditingClass(null)}
+                  className="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-600 font-extrabold py-3.5 rounded-2xl cursor-pointer transition-all active:scale-[0.98]"
+                >
+                  Hủy
+                </button>
+                <button
+                  id="btn-save-class-name"
+                  type="submit"
+                  disabled={savingClassName || !editingClassName.trim()}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black py-3.5 rounded-2xl cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-100 active:scale-[0.98] transition-all"
+                >
+                  {savingClassName && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  Lưu thay đổi
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

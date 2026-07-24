@@ -48,8 +48,8 @@ const DEFAULT_SEED_DATA: AppDataSchema = {
     {
       id: "exam-1",
       teacherId: "teacher-default",
-      title: "Đề kiểm tra Tin học Lớp 3: Làm quen với máy tính",
-      grade: "Lớp 3",
+      title: "Đề kiểm tra Tin học 3: Làm quen với máy tính",
+      grade: "Tin học 3",
       topic: "Các bộ phận của máy tính",
       duration: 15,
       questions: [
@@ -87,8 +87,8 @@ const DEFAULT_SEED_DATA: AppDataSchema = {
     {
       id: "exam-2",
       teacherId: "teacher-default",
-      title: "Đề kiểm tra Tin học Lớp 5: Thuật toán lặp Scratch",
-      grade: "Lớp 5",
+      title: "Đề kiểm tra Tin học 5: Thuật toán lặp Scratch",
+      grade: "Tin học 5",
       topic: "Cấu trúc lặp trong Scratch",
       duration: 20,
       questions: [
@@ -315,6 +315,36 @@ export async function fsDeleteClass(classId: string): Promise<void> {
   }
 }
 
+export async function fsUpdateClassName(classId: string, newName: string): Promise<Class> {
+  const data = await getAppData();
+  if (!Array.isArray(data.classes)) {
+    data.classes = [];
+  }
+
+  const cls = data.classes.find((c) => c.id === classId);
+  if (!cls) {
+    throw new Error("Không tìm thấy lớp học cần cập nhật.");
+  }
+
+  const trimmed = newName.trim();
+  if (!trimmed) {
+    throw new Error("Tên lớp học không được để trống.");
+  }
+
+  cls.name = trimmed;
+
+  if (Array.isArray(data.assignments)) {
+    data.assignments.forEach((asg) => {
+      if (asg.classId === classId) {
+        asg.className = trimmed;
+      }
+    });
+  }
+
+  await saveAppData(data);
+  return cls;
+}
+
 export async function fsAddStudent(classId: string, name: string, studentCode?: string): Promise<Student> {
   const data = await getAppData();
   const cls = data.classes.find((c) => c.id === classId);
@@ -431,6 +461,25 @@ export async function fsCreateExam(examData: Partial<Exam>): Promise<Exam> {
   data.exams.push(newExam);
   await saveAppData(data);
   return newExam;
+}
+
+export async function fsUpdateExam(examId: string, updates: Partial<Exam>): Promise<Exam> {
+  const data = await getAppData();
+  const exam = data.exams.find((e) => e.id === examId);
+  if (!exam) throw new Error("Không tìm thấy đề thi cần cập nhật");
+
+  if (updates.title !== undefined) exam.title = updates.title.trim();
+  if (updates.grade !== undefined) exam.grade = updates.grade;
+  if (updates.topic !== undefined) exam.topic = updates.topic;
+  if (updates.duration !== undefined) exam.duration = Number(updates.duration);
+  if (updates.questions !== undefined) exam.questions = updates.questions;
+
+  await saveAppData(data);
+  return exam;
+}
+
+export async function fsUpdateExamTitle(examId: string, newTitle: string): Promise<Exam> {
+  return fsUpdateExam(examId, { title: newTitle });
 }
 
 export async function fsCopyExam(examId: string): Promise<Exam> {

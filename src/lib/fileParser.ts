@@ -99,7 +99,7 @@ export function parseExamFromText(rawText: string, fileName?: string): ParseResu
   if (!rawText || textCharCount === 0) {
     return {
       title: fileName ? fileName.replace(/\.[^/.]+$/, "") : "Đề thi mới",
-      grade: "Lớp 3",
+      grade: "Tin học 3",
       topic: "Nội dung kiểm tra",
       questions: [],
       log: {
@@ -264,7 +264,7 @@ export function parseExamFromText(rawText: string, fileName?: string): ParseResu
 
   return {
     title: defaultTitle,
-    grade: "Lớp 3",
+    grade: "Tin học 3",
     topic: "Kiểm tra tổng hợp",
     questions,
     log: {

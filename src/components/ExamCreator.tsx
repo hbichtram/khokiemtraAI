@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { Question, QuestionOption, getOptionText, getOptionImage } from "../types";
+import { Question, QuestionOption, getOptionText, getOptionImage, ELEMENTARY_GRADES } from "../types";
 import { 
   Sparkles, Plus, Trash2, Edit3, HelpCircle, Save, 
   RefreshCw, FileText, ChevronDown, CheckCircle, AlertCircle,
@@ -24,7 +24,7 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
   const [noticeInfo, setNoticeInfo] = useState<string | null>(null);
 
   // Form Fields
-  const [grade, setGrade] = useState("Lớp 3");
+  const [grade, setGrade] = useState("Tin học 3");
   const [topic, setTopic] = useState("");
   const [content, setContent] = useState("");
   const [quantity, setQuantity] = useState(5);
@@ -76,8 +76,9 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
 
         const data = await res.json().catch(() => null);
 
+        const defaultTitle = grade.startsWith("Tin học") ? `Đề kiểm tra ${grade}: ${topic}` : `Đề kiểm tra Tin học ${grade}: ${topic}`;
         if (res.ok && data && Array.isArray(data.questions) && data.questions.length > 0) {
-          aiTitle = data.title || `Đề kiểm tra Tin học ${grade}: ${topic}`;
+          aiTitle = data.title || defaultTitle;
           aiQuestions = data.questions;
           generated = true;
         } else if (data && data.error) {
@@ -97,7 +98,7 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
           setError(apiError);
           return;
         }
-        aiTitle = `Đề kiểm tra Tin học ${grade}: ${topic}`;
+        aiTitle = grade.startsWith("Tin học") ? `Đề kiểm tra ${grade}: ${topic}` : `Đề kiểm tra Tin học ${grade}: ${topic}`;
         const count = Number(quantity) || 5;
         aiQuestions = Array.from({ length: count }, (_, idx) => ({
           id: `q-gen-${Date.now()}-${idx}`,
@@ -134,7 +135,7 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
     }
     setError(null);
     setNoticeInfo(null);
-    setTitle(`Đề kiểm tra Tin học ${grade}: ${topic}`);
+    setTitle(grade.startsWith("Tin học") ? `Đề kiểm tra ${grade}: ${topic}` : `Đề kiểm tra Tin học ${grade}: ${topic}`);
     const blankQuestions: Question[] = Array.from({ length: 3 }, (_, idx) => ({
       id: `q-manual-${Date.now()}-${idx}`,
       question: `Câu hỏi số ${idx + 1} của em là gì?`,
@@ -623,13 +624,14 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Khối lớp tiểu học</label>
                 <select
+                  id="select-elementary-grade"
                   value={grade}
                   onChange={(e) => setGrade(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-2xl px-4 py-3.5 text-sm font-bold text-slate-700 focus:outline-none cursor-pointer"
                 >
-                  <option value="Lớp 3">Lớp 3 (Làm quen Máy tính, Paint)</option>
-                  <option value="Lớp 4">Lớp 4 (Logo, Soạn thảo, Scratch cơ bản)</option>
-                  <option value="Lớp 5">Lớp 5 (Lặp lại, MSWLogo, Scratch nâng cao)</option>
+                  {ELEMENTARY_GRADES.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
                 </select>
               </div>
 

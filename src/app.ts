@@ -84,6 +84,7 @@ interface Assignment {
   status: "Chưa bắt đầu" | "Đang diễn ra" | "Đã hoàn thành" | "Đã hết hạn";
   teacherId?: string;
   createdAt?: string;
+  className?: string;
 }
 
 interface Submission {
@@ -159,8 +160,8 @@ function initDb(): DbSchema {
       {
         id: "exam-1",
         teacherId: "teacher-default",
-        title: "Đề kiểm tra Tin học Lớp 3: Làm quen với máy tính",
-        grade: "Lớp 3",
+        title: "Đề kiểm tra Tin học 3: Làm quen với máy tính",
+        grade: "Tin học 3",
         topic: "Các bộ phận của máy tính",
         duration: 15,
         questions: [
@@ -198,8 +199,8 @@ function initDb(): DbSchema {
       {
         id: "exam-2",
         teacherId: "teacher-default",
-        title: "Đề kiểm tra Tin học Lớp 5: Thuật toán lặp Scratch",
-        grade: "Lớp 5",
+        title: "Đề kiểm tra Tin học 5: Thuật toán lặp Scratch",
+        grade: "Tin học 5",
         topic: "Cấu trúc lặp trong Scratch",
         duration: 20,
         questions: [
@@ -351,6 +352,11 @@ function getGeminiClient(): GoogleGenAI | null {
   if (!apiKey) return null;
   return new GoogleGenAI({
     apiKey,
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build",
+      }
+    }
   });
 }
 
@@ -360,16 +366,19 @@ async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayM
   const originalModel = options.model || "gemini-3.6-flash";
   const aiClient = getGeminiClient();
   if (!aiClient) {
-    throw new Error("Chưa cấu hình khóa API GEMINI_API_KEY trên môi trường. Vui lòng kiểm tra Environment Variables.");
+    throw new Error("Chưa cấu hình khóa API GEMINI_API_KEY trên môi trường.");
   }
 
   // Model hierarchy: working active models on Gemini API
-  const modelOrder = ["gemini-3.6-flash", "gemini-flash-latest", "gemini-2.0-flash"];
+  const modelOrder = ["gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
   options.model = modelOrder[0];
 
   while (attempt < maxRetries) {
     try {
-      return await aiClient.models.generateContent(options);
+      console.log(`[AI] Gemini request started (Attempt ${attempt + 1}/${maxRetries}, Model: ${options.model})`);
+      const response = await aiClient.models.generateContent(options);
+      console.log(`[AI] Gemini response received for model '${options.model}'`);
+      return response;
     } catch (error: any) {
       attempt++;
       const errStr = String(error?.message || error);
@@ -384,7 +393,7 @@ async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayM
       const currIdx = modelOrder.indexOf(options.model);
       if (currIdx !== -1 && currIdx + 1 < modelOrder.length) {
         options.model = modelOrder[currIdx + 1];
-        console.warn(`Falling back to model: ${options.model}`);
+        console.warn(`[AI] Falling back to model: ${options.model}`);
       }
 
       const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
@@ -614,6 +623,32 @@ app.post("/api/classes", (req, res) => {
   db.classes.push(newClass);
   saveDb();
   res.status(201).json(newClass);
+});
+
+app.put("/api/classes/:id", (req, res) => {
+  const { name } = req.body;
+  if (!name || name.trim() === "") {
+    return res.status(400).json({ error: "Tên lớp không được để trống" });
+  }
+
+  const cls = db.classes.find((c) => c.id === req.params.id);
+  if (!cls) {
+    return res.status(404).json({ error: "Lớp học không tồn tại" });
+  }
+
+  const trimmedName = name.trim();
+  cls.name = trimmedName;
+
+  if (Array.isArray(db.assignments)) {
+    db.assignments.forEach((asg) => {
+      if (asg.classId === req.params.id) {
+        asg.className = trimmedName;
+      }
+    });
+  }
+
+  saveDb();
+  res.json(cls);
 });
 
 app.delete("/api/classes/:id", (req, res) => {
@@ -872,19 +907,27 @@ app.delete("/api/exams/:id", (req, res) => {
 
 // AI EXAM GENERATOR (GEMINI)
 const handleGenerateExam = async (req: express.Request, res: express.Response) => {
-  const grade = req.body.grade || req.body.subject || "Lớp 5";
+  console.log("[AI] API request received");
+  const apiKeyConfigured = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || "").trim();
+  console.log(`[AI] GEMINI_API_KEY configured: ${apiKeyConfigured}`);
+
+  const grade = req.body.grade || req.body.subject || "Tin học 3";
   const topic = req.body.topic || req.body.subject || "Tin học";
   const content = req.body.content || "";
   const quantity = Number(req.body.quantity || req.body.questionCount || req.body.count) || 5;
 
   if (!grade && !topic) {
-    return res.status(400).json({ error: "Vui lòng nhập đầy đủ thông tin khối lớp hoặc chủ đề." });
+    return res.status(400).json({
+      error: "AI_GENERATION_FAILED",
+      message: "Vui lòng nhập đầy đủ thông tin khối lớp hoặc chủ đề."
+    });
   }
 
-  const aiClient = getGeminiClient();
-  if (!aiClient) {
+  if (!apiKeyConfigured) {
+    console.error("[AI] GEMINI_API_KEY is missing in process.env");
     return res.status(500).json({ 
-      error: "Hệ thống AI chưa nhận được khóa API (GEMINI_API_KEY). Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables trên Vercel và kích hoạt Redeploy." 
+      error: "AI_GENERATION_FAILED",
+      message: "Hệ thống AI chưa nhận được khóa API (GEMINI_API_KEY). Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables trên Vercel và kích hoạt Redeploy." 
     });
   }
 
@@ -952,7 +995,7 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
         }
       });
     } catch (schemaErr: any) {
-      console.warn("Retrying AI Generation without responseSchema fallback:", schemaErr?.message || schemaErr);
+      console.warn("[AI] Retrying without responseSchema fallback:", schemaErr?.message || schemaErr);
       response = await generateContentWithRetry({
         model: "gemini-3.6-flash",
         contents: prompt,
@@ -962,7 +1005,11 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
       });
     }
 
+    console.log("[AI] JSON parsing started");
     const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) {
+      throw new Error("Phản hồi từ mô hình AI rỗng hoặc không đúng định dạng.");
+    }
     const parsedData = parseAIResponseJSON(rawText);
 
     let titleVal = parsedData.title || `Đề kiểm tra Tin học ${grade}: ${topic}`;
@@ -985,33 +1032,41 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
       };
     });
 
+    console.log("[AI] Exam generation completed");
     return res.json({
       title: titleVal,
       questions: formattedQuestions
     });
   } catch (error: any) {
-    console.error("AI Generation Error:", {
+    console.error("[AI] Generation Error:", {
       message: error?.message,
       status: error?.status || error?.statusCode,
       stack: error?.stack
     });
-    return res.status(500).json({ error: `Không thể tạo câu hỏi qua AI: ${error?.message || error}` });
+    return res.status(500).json({ 
+      error: "AI_GENERATION_FAILED",
+      message: `Không thể tạo câu hỏi qua AI: ${error?.message || error}` 
+    });
   }
 };
 
 const handleGenerateSingleQuestion = async (req: express.Request, res: express.Response) => {
-  const grade = req.body.grade || req.body.subject || "Lớp 5";
+  console.log("[AI] Single Question API request received");
+  const apiKeyConfigured = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || "").trim();
+  console.log(`[AI] GEMINI_API_KEY configured: ${apiKeyConfigured}`);
+
+  const grade = req.body.grade || req.body.subject || "Tin học 3";
   const topic = req.body.topic || req.body.subject || "Tin học";
   const currentQuestionText = req.body.currentQuestionText || "";
 
   if (!grade && !topic) {
-    return res.status(400).json({ error: "Thiếu thông tin khối lớp hoặc chủ đề." });
+    return res.status(400).json({ error: "AI_GENERATION_FAILED", message: "Thiếu thông tin khối lớp hoặc chủ đề." });
   }
 
-  const aiClient = getGeminiClient();
-  if (!aiClient) {
+  if (!apiKeyConfigured) {
     return res.status(500).json({ 
-      error: "Hệ thống AI chưa nhận được khóa API (GEMINI_API_KEY). Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables trên Vercel." 
+      error: "AI_GENERATION_FAILED",
+      message: "Hệ thống AI chưa nhận được khóa API (GEMINI_API_KEY). Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables trên Vercel." 
     });
   }
 

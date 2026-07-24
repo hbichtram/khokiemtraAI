@@ -9,7 +9,8 @@ import {
   fsGetClasses,
   fsDeleteExam,
   fsCopyExam,
-  fsCreateAssignment
+  fsCreateAssignment,
+  fsUpdateExamTitle
 } from "../lib/firestoreData";
 
 interface ExamBankProps {
@@ -26,6 +27,11 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
   // Modals / Selection states
   const [viewingExam, setViewingExam] = useState<Exam | null>(null);
   const [assigningExam, setAssigningExam] = useState<Exam | null>(null);
+
+  // Edit Title state
+  const [editingExam, setEditingExam] = useState<Exam | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [savingTitle, setSavingTitle] = useState(false);
 
   // Giao bài Form State
   const [selectedClassId, setSelectedClassId] = useState("");
@@ -51,6 +57,67 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
       setError(err.message || "Đã xảy ra lỗi khi tải dữ liệu");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStartEditTitle = (exam: Exam) => {
+    setEditingExam(exam);
+    setEditingTitle(exam.title);
+  };
+
+  const handleSaveExamTitle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExam) return;
+
+    const cleanTitle = editingTitle.trim();
+    if (!cleanTitle) {
+      setError("Tên đề thi không được để trống!");
+      return;
+    }
+
+    setSavingTitle(true);
+    setError(null);
+
+    try {
+      let updated = false;
+      try {
+        const res = await fetch(`/api/exams/${editingExam.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: cleanTitle })
+        });
+        if (res.ok) {
+          updated = true;
+        }
+      } catch (err) {
+        console.warn("API update exam title failed, fallback to Firestore:", err);
+      }
+
+      if (!updated) {
+        await fsUpdateExamTitle(editingExam.id, cleanTitle);
+      }
+
+      setExams((prevExams) =>
+        prevExams.map((ex) => (ex.id === editingExam.id ? { ...ex, title: cleanTitle } : ex))
+      );
+
+      if (viewingExam && viewingExam.id === editingExam.id) {
+        setViewingExam((prev) => (prev ? { ...prev, title: cleanTitle } : null));
+      }
+
+      if (assigningExam && assigningExam.id === editingExam.id) {
+        setAssigningExam((prev) => (prev ? { ...prev, title: cleanTitle } : null));
+      }
+
+      setSuccess(`Đã cập nhật tên đề kiểm tra thành "${cleanTitle}"!`);
+      setTimeout(() => setSuccess(null), 3500);
+
+      setEditingExam(null);
+      setEditingTitle("");
+    } catch (err: any) {
+      setError(err.message || "Lỗi khi cập nhật tên đề thi.");
+    } finally {
+      setSavingTitle(false);
     }
   };
 
@@ -238,6 +305,15 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
                   </span>
                   <div className="flex items-center gap-1.5">
                     <button
+                      id={`btn-edit-title-${exam.id}`}
+                      onClick={() => handleStartEditTitle(exam)}
+                      className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100/70 p-2 rounded-xl bg-indigo-50 border border-indigo-100 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold shadow-xs"
+                      title="Chỉnh sửa tên đề thi"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Sửa tên</span>
+                    </button>
+                    <button
                       onClick={() => handleCopyExam(exam.id)}
                       className="text-slate-400 hover:text-indigo-600 p-2 rounded-xl bg-slate-50 hover:bg-indigo-50 transition-all cursor-pointer"
                       title="Nhân bản đề"
@@ -254,9 +330,18 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
                   </div>
                 </div>
 
-                <h3 className="font-black text-slate-900 text-lg leading-tight hover:text-indigo-600 transition-all">
-                  {exam.title}
-                </h3>
+                <div className="flex items-start justify-between gap-2 group">
+                  <h3 className="font-black text-slate-900 text-lg leading-tight hover:text-indigo-600 transition-all flex-1">
+                    {exam.title}
+                  </h3>
+                  <button
+                    onClick={() => handleStartEditTitle(exam)}
+                    className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer shrink-0"
+                    title="Chỉnh sửa tên đề kiểm tra"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                </div>
 
                 <div className="text-xs font-medium text-slate-500 space-y-1.5 pt-2">
                   <p>Chủ đề chính: <strong className="text-slate-800 font-bold">{exam.topic}</strong></p>
@@ -293,16 +378,27 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-[32px] w-full max-w-4xl max-h-[85vh] flex flex-col shadow-2xl animate-fadeIn border border-slate-100">
             {/* Modal Header */}
-            <div className="flex justify-between items-center border-b border-slate-100 p-6 bg-slate-50/50 rounded-t-[32px]">
-              <div>
+            <div className="flex justify-between items-start border-b border-slate-100 p-6 bg-slate-50/50 rounded-t-[32px]">
+              <div className="flex-1 pr-4">
                 <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-xl">
                   {viewingExam.grade}
                 </span>
-                <h3 className="font-black text-xl text-slate-900 mt-2.5 leading-snug">{viewingExam.title}</h3>
+                <div className="flex items-center gap-2 mt-2.5">
+                  <h3 className="font-black text-xl text-slate-900 leading-snug">{viewingExam.title}</h3>
+                  <button
+                    id="btn-edit-title-view-modal"
+                    onClick={() => handleStartEditTitle(viewingExam)}
+                    className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-xl border border-indigo-100 transition-all cursor-pointer flex items-center gap-1 text-xs font-bold shrink-0 shadow-2xs"
+                    title="Sửa tên đề thi"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    <span>Sửa tên</span>
+                  </button>
+                </div>
               </div>
               <button
                 onClick={() => setViewingExam(null)}
-                className="text-slate-400 hover:text-slate-600 p-2.5 rounded-2xl bg-white border border-slate-100 cursor-pointer shadow-xs transition-colors"
+                className="text-slate-400 hover:text-slate-600 p-2.5 rounded-2xl bg-white border border-slate-100 cursor-pointer shadow-xs transition-colors shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -477,6 +573,69 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
                 >
                   {loading && <RefreshCw className="w-4 h-4 animate-spin" />}
                   Xác nhận giao
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT EXAM TITLE MODAL */}
+      {editingExam && (
+        <div id="modal-edit-exam-title" className="fixed inset-0 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl animate-scaleUp border border-slate-100 overflow-hidden">
+            <div className="flex justify-between items-center border-b border-slate-100 p-6 bg-slate-50/50">
+              <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-indigo-600" />
+                Sửa tên đề kiểm tra
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingExam(null)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 bg-white rounded-xl border border-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveExamTitle} className="p-6 space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  Tên đề kiểm tra mới
+                </label>
+                <input
+                  id="input-edit-exam-title"
+                  type="text"
+                  required
+                  autoFocus
+                  value={editingTitle}
+                  onChange={(e) => setEditingTitle(e.target.value)}
+                  placeholder="Nhập tên mới cho đề kiểm tra..."
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="bg-indigo-50/50 border border-indigo-100 p-3.5 rounded-2xl text-[11px] text-indigo-800 leading-relaxed font-medium">
+                ℹ️ <strong>Đồng bộ tự động:</strong> Tên đề mới sẽ được cập nhật đồng bộ ở kho đề, lịch giao bài, báo cáo kết quả và giao diện làm bài của học sinh mà không làm thay đổi câu hỏi, đáp án hay điểm số.
+              </div>
+
+              <div className="flex gap-3 pt-3 text-xs">
+                <button
+                  type="button"
+                  id="btn-cancel-edit-title"
+                  onClick={() => setEditingExam(null)}
+                  className="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-600 font-extrabold py-3.5 rounded-2xl cursor-pointer transition-all active:scale-[0.98]"
+                >
+                  Hủy
+                </button>
+                <button
+                  id="btn-save-exam-title"
+                  type="submit"
+                  disabled={savingTitle || !editingTitle.trim()}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black py-3.5 rounded-2xl cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-100 active:scale-[0.98] transition-all"
+                >
+                  {savingTitle && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  Lưu
                 </button>
               </div>
             </form>
