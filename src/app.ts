@@ -104,11 +104,25 @@ interface Submission {
   startedAt?: string;
 }
 
+interface Game {
+  id: string;
+  title: string;
+  description: string;
+  grade: string;
+  topic: string;
+  imageUrl?: string;
+  gameUrl: string;
+  status: "active" | "hidden";
+  teacherId?: string;
+  createdAt: string;
+}
+
 interface DbSchema {
   classes: Class[];
   exams: Exam[];
   assignments: Assignment[];
   submissions: Submission[];
+  games?: Game[];
 }
 
 // Ensure the database file exists with some initial seed data
@@ -131,9 +145,9 @@ function initDb(): DbSchema {
         name: "Lớp 3A - Tin học Tiểu học",
         classCode: "TH3A99",
         students: [
-          { id: "student-1", name: "Nguyễn Văn An", studentCode: "HS3A01", classId: "class-1" },
-          { id: "student-2", name: "Lê Thị Bình", studentCode: "HS3A02", classId: "class-1" },
-          { id: "student-3", name: "Trần Minh Cường", studentCode: "HS3A03", classId: "class-1" }
+          { id: "student-1", name: "Nguyễn Văn An", studentCode: "HSTH3A9901", classId: "class-1" },
+          { id: "student-2", name: "Lê Thị Bình", studentCode: "HSTH3A9902", classId: "class-1" },
+          { id: "student-3", name: "Trần Minh Cường", studentCode: "HSTH3A9903", classId: "class-1" }
         ]
       },
       {
@@ -142,8 +156,8 @@ function initDb(): DbSchema {
         name: "Lớp 4B - Lập trình Scratch",
         classCode: "TH4B88",
         students: [
-          { id: "student-4", name: "Phạm Hồng Đăng", studentCode: "HS4B01", classId: "class-2" },
-          { id: "student-5", name: "Đỗ Gia Huy", studentCode: "HS4B02", classId: "class-2" }
+          { id: "student-4", name: "Phạm Hồng Đăng", studentCode: "HSTH4B8801", classId: "class-2" },
+          { id: "student-5", name: "Đỗ Gia Huy", studentCode: "HSTH4B8802", classId: "class-2" }
         ]
       },
       {
@@ -152,8 +166,8 @@ function initDb(): DbSchema {
         name: "Lớp 5C - Lắp ráp Robot",
         classCode: "TH5C77",
         students: [
-          { id: "student-6", name: "Vũ Khánh Linh", studentCode: "HS5C01", classId: "class-3" },
-          { id: "student-7", name: "Hoàng Minh Nam", studentCode: "HS5C02", classId: "class-3" }
+          { id: "student-6", name: "Vũ Khánh Linh", studentCode: "HSTH5C7701", classId: "class-3" },
+          { id: "student-7", name: "Hoàng Minh Nam", studentCode: "HSTH5C7702", classId: "class-3" }
         ]
       }
     ],
@@ -267,6 +281,7 @@ async function syncToFirebase() {
       exams: db.exams,
       assignments: db.assignments,
       submissions: db.submissions,
+      games: db.games || [],
       updatedAt: new Date().toISOString()
     });
   } catch (err) {
@@ -283,6 +298,7 @@ async function loadFromFirebase() {
       if (data.exams) db.exams = data.exams;
       if (data.assignments) db.assignments = data.assignments;
       if (data.submissions) db.submissions = data.submissions;
+      if (data.games) db.games = data.games;
       console.log("Successfully synced database with Firebase khokiemtraai");
       try {
         fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
@@ -348,43 +364,97 @@ function updateAssignmentStatuses() {
 }
 
 // Initialize Gemini Client helper
-function getGeminiClient(): GoogleGenAI | null {
+function getGeminiClient(): { client: GoogleGenAI; apiKey: string } | null {
   const apiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || "").trim();
-  if (!apiKey) return null;
-  return new GoogleGenAI({
-    apiKey,
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
+  if (!apiKey) {
+    console.error("GEMINI_API_KEY is missing");
+    return null;
+  }
+  return {
+    client: new GoogleGenAI({
+      apiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        }
       }
-    }
-  });
+    }),
+    apiKey
+  };
 }
 
-// Retry wrapper to handle transient Gemini API errors (like 503, 429, 404)
+// Retry wrapper to handle transient Gemini API errors with full logging
 async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayMs = 1000) {
   let attempt = 0;
   const originalModel = options.model || "gemini-3.6-flash";
-  const aiClient = getGeminiClient();
-  if (!aiClient) {
-    throw new Error("Chưa cấu hình khóa API GEMINI_API_KEY trên môi trường.");
+  const geminiObj = getGeminiClient();
+  if (!geminiObj) {
+    console.error("GEMINI_API_KEY is missing");
+    const err: any = new Error("GEMINI_API_KEY is missing. Chưa cấu hình khóa API GEMINI_API_KEY trên môi trường.");
+    err.geminiMeta = {
+      endpointUrl: `https://generativelanguage.googleapis.com/v1beta/models/${originalModel}:generateContent`,
+      model: originalModel,
+      httpStatus: 400,
+      responseBody: "GEMINI_API_KEY is missing in process.env",
+      stackTrace: err.stack || "N/A"
+    };
+    throw err;
   }
 
+  const { client: aiClient } = geminiObj;
   // Model hierarchy: working active models on Gemini API
   const modelOrder = ["gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
   options.model = modelOrder[0];
 
+  let lastError: any = null;
+
   while (attempt < maxRetries) {
+    const currentModel = options.model;
+    const endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent`;
+
+    console.log(`[Gemini Call] Endpoint: ${endpointUrl}`);
+    console.log(`[Gemini Call] Model: ${currentModel}`);
+    console.log(`[Gemini Call] Attempt: ${attempt + 1}/${maxRetries}`);
+
     try {
-      console.log(`[AI] Gemini request started (Attempt ${attempt + 1}/${maxRetries}, Model: ${options.model})`);
       const response = await aiClient.models.generateContent(options);
-      console.log(`[AI] Gemini response received for model '${options.model}'`);
-      return response;
+      const responseText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      const httpStatus = 200;
+
+      console.log(`[Gemini Call Success] Endpoint: ${endpointUrl}`);
+      console.log(`[Gemini Call Success] Model: ${currentModel}`);
+      console.log(`[Gemini Call Success] HTTP Status: ${httpStatus}`);
+      console.log(`[Gemini Call Success] Response Body Snippet: ${responseText.slice(0, 1000)}`);
+
+      return {
+        response,
+        model: currentModel,
+        endpointUrl,
+        httpStatus,
+        rawText: responseText
+      };
     } catch (error: any) {
       attempt++;
-      const errStr = String(error?.message || error);
-      const status = error?.status || error?.statusCode || "N/A";
-      console.warn(`[Gemini API Warning] Attempt ${attempt}/${maxRetries} for model '${options.model}' failed (Status: ${status}): ${errStr}`);
+      lastError = error;
+
+      const httpStatus = error?.status || error?.statusCode || error?.response?.status || 500;
+      const rawResp = error?.response?.data || error?.body || error?.rawResponse || error?.message || String(error);
+      const responseBody = typeof rawResp === "object" ? JSON.stringify(rawResp) : String(rawResp);
+      const stackTrace = error?.stack || "No stack trace available";
+
+      console.error(`[Gemini Call Error] Endpoint: ${endpointUrl}`);
+      console.error(`[Gemini Call Error] Model: ${currentModel}`);
+      console.error(`[Gemini Call Error] HTTP Status: ${httpStatus}`);
+      console.error(`[Gemini Call Error] Response Body:`, responseBody);
+      console.error(`[Gemini Call Error] Stack Trace:`, stackTrace);
+
+      error.geminiMeta = {
+        endpointUrl,
+        model: currentModel,
+        httpStatus,
+        responseBody,
+        stackTrace
+      };
 
       if (attempt >= maxRetries) {
         options.model = originalModel;
@@ -394,15 +464,16 @@ async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayM
       const currIdx = modelOrder.indexOf(options.model);
       if (currIdx !== -1 && currIdx + 1 < modelOrder.length) {
         options.model = modelOrder[currIdx + 1];
-        console.warn(`[AI] Falling back to model: ${options.model}`);
+        console.warn(`[Gemini Fallback] Switching to model: ${options.model}`);
       }
 
       const delay = baseDelayMs * Math.pow(2, attempt) + Math.random() * 500;
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
+
   options.model = originalModel;
-  throw new Error("Không thể nhận phản hồi từ dịch vụ AI do quá tải.");
+  throw lastError || new Error("Không thể nhận phản hồi từ dịch vụ AI.");
 }
 
 function cleanOptionText(text: string): string {
@@ -906,11 +977,76 @@ app.delete("/api/exams/:id", (req, res) => {
   res.json({ success: true, message: "Xóa đề thi thành công" });
 });
 
+// ==========================================
+// GAMES API
+// ==========================================
+app.get("/api/games", (req, res) => {
+  if (!db.games) db.games = [];
+  res.json(db.games);
+});
+
+app.post("/api/games", (req, res) => {
+  if (!db.games) db.games = [];
+  const { title, description, grade, topic, imageUrl, gameUrl, status, teacherId } = req.body;
+  if (!title || !gameUrl) {
+    return res.status(400).json({ error: "Tên trò chơi và liên kết không được để trống" });
+  }
+
+  const newGame: Game = {
+    id: `game-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    title,
+    description: description || "",
+    grade: grade || "Tất cả các khối",
+    topic: topic || "Tổng hợp",
+    imageUrl: imageUrl || "",
+    gameUrl,
+    status: status === "hidden" ? "hidden" : "active",
+    teacherId: teacherId || "teacher-default",
+    createdAt: new Date().toISOString()
+  };
+
+  db.games.unshift(newGame);
+  saveDb();
+  res.status(201).json(newGame);
+});
+
+app.put("/api/games/:id", (req, res) => {
+  if (!db.games) db.games = [];
+  const index = db.games.findIndex((g) => g.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: "Không tìm thấy trò chơi" });
+  }
+
+  const existing = db.games[index];
+  const updated: Game = {
+    ...existing,
+    ...req.body,
+    id: existing.id // preserve ID
+  };
+
+  db.games[index] = updated;
+  saveDb();
+  res.json(updated);
+});
+
+app.delete("/api/games/:id", (req, res) => {
+  if (!db.games) db.games = [];
+  const index = db.games.findIndex((g) => g.id === req.params.id);
+  if (index === -1) {
+    return res.status(404).json({ error: "Không tìm thấy trò chơi" });
+  }
+
+  db.games.splice(index, 1);
+  saveDb();
+  res.json({ success: true, message: "Đã xóa trò chơi thành công" });
+});
+
+
 // AI EXAM GENERATOR (GEMINI)
 const handleGenerateExam = async (req: express.Request, res: express.Response) => {
-  console.log("[AI] API request received");
-  const apiKeyConfigured = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || "").trim();
-  console.log(`[AI] GEMINI_API_KEY configured: ${apiKeyConfigured}`);
+  console.log("[AI] Request received at /api/exams/generate");
+  const geminiObj = getGeminiClient();
+  const apiKeyConfigured = !!geminiObj;
 
   const grade = req.body.grade || req.body.subject || "Tin học 3";
   const topic = req.body.topic || req.body.subject || "Tin học";
@@ -919,16 +1055,23 @@ const handleGenerateExam = async (req: express.Request, res: express.Response) =
 
   if (!grade && !topic) {
     return res.status(400).json({
-      error: "AI_GENERATION_FAILED",
+      error: "INVALID_INPUT",
       message: "Vui lòng nhập đầy đủ thông tin khối lớp hoặc chủ đề."
     });
   }
 
   if (!apiKeyConfigured) {
-    console.error("[AI] GEMINI_API_KEY is missing in process.env");
-    return res.status(500).json({ 
-      error: "AI_GENERATION_FAILED",
-      message: "Hệ thống AI chưa nhận được khóa API (GEMINI_API_KEY). Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables trên Vercel và kích hoạt Redeploy." 
+    console.error("GEMINI_API_KEY is missing");
+    return res.status(400).json({ 
+      error: "GEMINI_API_KEY_MISSING",
+      message: "GEMINI_API_KEY is missing. Khóa API chưa được cấu hình trên môi trường Vercel Production. Vui lòng bổ sung biến môi trường GEMINI_API_KEY trong Vercel Settings -> Environment Variables và kích hoạt Redeploy.",
+      details: {
+        endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        model: "gemini-3.6-flash",
+        httpStatus: 400,
+        responseBody: "GEMINI_API_KEY is missing in process.env",
+        stackTrace: "N/A"
+      }
     });
   }
 
@@ -960,11 +1103,14 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
     "difficulty": "Nhận biết" // chỉ được nhận một trong ba giá trị: 'Nhận biết', 'Thông hiểu', 'Vận dụng'
   }`;
 
+  let chosenModel = "gemini-3.6-flash";
+  let endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent`;
+
   try {
-    let response;
+    let result: any;
     try {
-      response = await generateContentWithRetry({
-        model: "gemini-3.6-flash",
+      result = await generateContentWithRetry({
+        model: chosenModel,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -997,8 +1143,8 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
       });
     } catch (schemaErr: any) {
       console.warn("[AI] Retrying without responseSchema fallback:", schemaErr?.message || schemaErr);
-      response = await generateContentWithRetry({
-        model: "gemini-3.6-flash",
+      result = await generateContentWithRetry({
+        model: chosenModel,
         contents: prompt,
         config: {
           responseMimeType: "application/json"
@@ -1006,8 +1152,8 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
       });
     }
 
-    console.log("[AI] JSON parsing started");
-    const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+    const { rawText, model: usedModel, endpointUrl: usedEndpoint, httpStatus: status } = result;
+
     if (!rawText) {
       throw new Error("Phản hồi từ mô hình AI rỗng hoặc không đúng định dạng.");
     }
@@ -1033,41 +1179,71 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
       };
     });
 
-    console.log("[AI] Exam generation completed");
+    console.log(`[AI Exam Generation Completed] Created ${formattedQuestions.length} questions for ${grade} - ${topic}`);
     return res.json({
       title: titleVal,
-      questions: formattedQuestions
+      questions: formattedQuestions,
+      meta: {
+        endpoint: usedEndpoint,
+        model: usedModel,
+        httpStatus: status
+      }
     });
   } catch (error: any) {
-    console.error("[AI] Generation Error:", {
-      message: error?.message,
-      status: error?.status || error?.statusCode,
-      stack: error?.stack
+    const meta = error?.geminiMeta || {};
+    const errEndpoint = meta.endpointUrl || endpointUrl;
+    const errModel = meta.model || chosenModel;
+    const errHttpStatus = meta.httpStatus || error?.status || error?.statusCode || 500;
+    const errResponseBody = meta.responseBody || error?.response?.data || error?.body || error?.message || String(error);
+    const errStackTrace = meta.stackTrace || error?.stack || "No stack trace available";
+
+    console.error("[AI Generation Error Handler]", {
+      endpoint: errEndpoint,
+      model: errModel,
+      httpStatus: errHttpStatus,
+      responseBody: errResponseBody,
+      stackTrace: errStackTrace
     });
-    return res.status(500).json({ 
+
+    return res.status(400).json({ 
       error: "AI_GENERATION_FAILED",
-      message: `Không thể tạo câu hỏi qua AI: ${error?.message || error}` 
+      message: `Lỗi khi gọi Gemini AI: ${error?.message || error}`,
+      details: {
+        endpoint: errEndpoint,
+        model: errModel,
+        httpStatus: errHttpStatus,
+        responseBody: errResponseBody,
+        stackTrace: errStackTrace
+      }
     });
   }
 };
 
 const handleGenerateSingleQuestion = async (req: express.Request, res: express.Response) => {
-  console.log("[AI] Single Question API request received");
-  const apiKeyConfigured = !!(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.API_KEY || "").trim();
-  console.log(`[AI] GEMINI_API_KEY configured: ${apiKeyConfigured}`);
+  console.log("[AI] Request received at /api/exams/generate-single-question");
+  const geminiObj = getGeminiClient();
+  const apiKeyConfigured = !!geminiObj;
 
   const grade = req.body.grade || req.body.subject || "Tin học 3";
   const topic = req.body.topic || req.body.subject || "Tin học";
   const currentQuestionText = req.body.currentQuestionText || "";
 
   if (!grade && !topic) {
-    return res.status(400).json({ error: "AI_GENERATION_FAILED", message: "Thiếu thông tin khối lớp hoặc chủ đề." });
+    return res.status(400).json({ error: "INVALID_INPUT", message: "Thiếu thông tin khối lớp hoặc chủ đề." });
   }
 
   if (!apiKeyConfigured) {
-    return res.status(500).json({ 
-      error: "AI_GENERATION_FAILED",
-      message: "Hệ thống AI chưa nhận được khóa API (GEMINI_API_KEY). Vui lòng cấu hình GEMINI_API_KEY trong Environment Variables trên Vercel." 
+    console.error("GEMINI_API_KEY is missing");
+    return res.status(400).json({ 
+      error: "GEMINI_API_KEY_MISSING",
+      message: "GEMINI_API_KEY is missing. Khóa API chưa được cấu hình trên môi trường Vercel Production.",
+      details: {
+        endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
+        model: "gemini-3.6-flash",
+        httpStatus: 400,
+        responseBody: "GEMINI_API_KEY is missing in process.env",
+        stackTrace: "N/A"
+      }
     });
   }
 
@@ -1088,11 +1264,14 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
   "difficulty": "Thông hiểu" // nhận một trong ba: 'Nhận biết', 'Thông hiểu', 'Vận dụng'
 }`;
 
+  let chosenModel = "gemini-3.6-flash";
+  let endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent`;
+
   try {
-    let response;
+    let result: any;
     try {
-      response = await generateContentWithRetry({
-        model: "gemini-3.6-flash",
+      result = await generateContentWithRetry({
+        model: chosenModel,
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -1115,8 +1294,8 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
       });
     } catch (schemaErr: any) {
       console.warn("Retrying AI Single Question without schema:", schemaErr?.message || schemaErr);
-      response = await generateContentWithRetry({
-        model: "gemini-3.6-flash",
+      result = await generateContentWithRetry({
+        model: chosenModel,
         contents: prompt,
         config: {
           responseMimeType: "application/json"
@@ -1124,7 +1303,7 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
       });
     }
 
-    const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+    const { rawText } = result;
     const parsedData = parseAIResponseJSON(rawText);
 
     const optionsList = extractOptionsList(parsedData.options);
@@ -1140,8 +1319,32 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
 
     return res.json({ question: questionObj });
   } catch (error: any) {
-    console.error("AI Single Question Generation Error:", error);
-    return res.status(500).json({ error: `Không thể tạo lại câu hỏi này: ${error?.message || error}` });
+    const meta = error?.geminiMeta || {};
+    const errEndpoint = meta.endpointUrl || endpointUrl;
+    const errModel = meta.model || chosenModel;
+    const errHttpStatus = meta.httpStatus || error?.status || error?.statusCode || 500;
+    const errResponseBody = meta.responseBody || error?.response?.data || error?.body || error?.message || String(error);
+    const errStackTrace = meta.stackTrace || error?.stack || "No stack trace available";
+
+    console.error("[AI Single Question Error Handler]", {
+      endpoint: errEndpoint,
+      model: errModel,
+      httpStatus: errHttpStatus,
+      responseBody: errResponseBody,
+      stackTrace: errStackTrace
+    });
+
+    return res.status(400).json({ 
+      error: "AI_GENERATION_FAILED",
+      message: `Không thể tạo lại câu hỏi này: ${error?.message || error}`,
+      details: {
+        endpoint: errEndpoint,
+        model: errModel,
+        httpStatus: errHttpStatus,
+        responseBody: errResponseBody,
+        stackTrace: errStackTrace
+      }
+    });
   }
 };
 
@@ -1235,14 +1438,14 @@ ${textToParse.slice(0, 15000)}
 """`;
 
       try {
-        const response = await generateContentWithRetry({
+        const result = await generateContentWithRetry({
           model: "gemini-3.6-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json"
           }
         });
-        const rawText = response.text || response.candidates?.[0]?.content?.parts?.[0]?.text;
+        const rawText = result.rawText;
         const parsedData = parseAIResponseJSON(rawText);
 
         if (parsedData && Array.isArray(parsedData.questions) && parsedData.questions.length > 0) {

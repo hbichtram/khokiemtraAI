@@ -81,8 +81,14 @@ export default function ExamCreator({ onExamSaved }: ExamCreatorProps) {
           aiTitle = data.title || defaultTitle;
           aiQuestions = data.questions;
           generated = true;
-        } else if (data && data.error) {
-          apiError = data.error;
+        } else if (data && (data.message || data.error)) {
+          const mainMsg = data.message || (typeof data.error === "string" ? data.error : "Tạo đề thi thất bại");
+          const details = data.details;
+          let detailStr = "";
+          if (details) {
+            detailStr = ` [Chi tiết: Endpoint=${details.endpoint || "N/A"}, Model=${details.model || "N/A"}, HTTP Status=${details.httpStatus || "N/A"}, Response=${typeof details.responseBody === "object" ? JSON.stringify(details.responseBody) : details.responseBody}]`;
+          }
+          apiError = `${mainMsg}${detailStr}`;
         } else if (!res.ok) {
           apiError = `Lỗi máy chủ khi gọi AI (Mã HTTP: ${res.status} ${res.statusText || ""}). Vui lòng kiểm tra lại GEMINI_API_KEY.`;
         } else {

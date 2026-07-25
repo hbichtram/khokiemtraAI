@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import { User } from "../types";
 import StudentExamScreen from "./StudentExamScreen";
 import StudentReviewScreen from "./StudentReviewScreen";
+import StudentGamesScreen from "./StudentGamesScreen";
 import Footer from "./Footer";
 import { 
   Award, Play, Eye, LogOut, BookOpen, Clock, Calendar, 
   HelpCircle, RefreshCw, AlertCircle, Smile, GraduationCap,
-  Trophy, Star 
+  Trophy, Star, Gamepad2 
 } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { db as firestoreDb } from "../firebase";
@@ -29,6 +30,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
 
   // Active view states: "dashboard" | "exam" | "review"
   const [viewState, setViewState] = useState<"dashboard" | "exam" | "review">("dashboard");
+  const [studentTab, setStudentTab] = useState<"tests" | "games">("tests");
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
 
@@ -249,9 +251,42 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
             Đăng xuất
           </button>
         </div>
+
+        {/* Student Sub-Navigation Bar */}
+        <div className="bg-amber-600/15 border-t border-amber-500/20 backdrop-blur-md px-4 py-3">
+          <div className="max-w-3xl mx-auto grid grid-cols-2 gap-3 sm:gap-4 p-1.5 bg-slate-950/20 rounded-2xl border border-amber-500/20 shadow-inner">
+            <button
+              onClick={() => setStudentTab("tests")}
+              className={`w-full flex items-center justify-center gap-2.5 px-4 py-3 sm:py-3.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer text-center ${
+                studentTab === "tests"
+                  ? "bg-slate-900 text-amber-300 shadow-lg shadow-slate-950/20 ring-1 ring-amber-400/30 scale-[1.01]"
+                  : "bg-white/50 text-slate-900 hover:bg-white/80 hover:text-slate-950"
+              }`}
+            >
+              <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+              <span>Bài kiểm tra</span>
+            </button>
+
+            <button
+              onClick={() => setStudentTab("games")}
+              className={`w-full flex items-center justify-center gap-2.5 px-4 py-3 sm:py-3.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer text-center ${
+                studentTab === "games"
+                  ? "bg-slate-900 text-amber-300 shadow-lg shadow-slate-950/20 ring-1 ring-amber-400/30 scale-[1.01]"
+                  : "bg-white/50 text-slate-900 hover:bg-white/80 hover:text-slate-950"
+              }`}
+            >
+              <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-amber-400" />
+              <span>Trò chơi</span>
+            </button>
+          </div>
+        </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-5 mt-8 space-y-8 animate-fadeIn">
+        {studentTab === "games" ? (
+          <StudentGamesScreen user={user} />
+        ) : (
+          <>
         {error && (
           <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-2xl flex items-start gap-2.5">
             <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
@@ -469,23 +504,24 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
               {/* LEADERBOARD CARD */}
               <div
                 id="student-leaderboard-card"
-                className="bg-gradient-to-br from-amber-500/10 via-amber-400/5 to-orange-500/10 border-2 border-amber-300/80 rounded-[32px] p-6 shadow-sm space-y-5 relative overflow-hidden"
+                className="bg-gradient-to-br from-amber-500/10 via-amber-400/5 to-orange-500/10 border-2 border-amber-300/80 rounded-[32px] p-5 sm:p-6 shadow-sm space-y-5 relative overflow-hidden"
               >
                 <div className="border-b border-amber-200/60 pb-3.5 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2.5">
-                    <div className="bg-gradient-to-tr from-amber-500 to-amber-400 text-white p-2.5 rounded-2xl shadow-md shadow-amber-200 shrink-0">
-                      <Trophy className="w-5 h-5 text-amber-950 fill-amber-300" />
+                  <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                    <div className="bg-gradient-to-tr from-amber-500 to-amber-400 text-white p-2 sm:p-2.5 rounded-2xl shadow-md shadow-amber-200 shrink-0">
+                      <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-amber-950 fill-amber-300" />
                     </div>
-                    <div>
-                      <h2 className="font-black text-slate-900 text-base flex items-center gap-1.5 tracking-tight">
-                        🏆 BẢNG VÀNG THÀNH TÍCH
+                    <div className="min-w-0 flex-1 overflow-visible">
+                      <h2 className="font-black text-slate-900 text-[12px] min-[380px]:text-[13px] sm:text-sm md:text-base flex items-center gap-1 sm:gap-1.5 tracking-tight whitespace-nowrap overflow-visible">
+                        <span className="shrink-0">🏆</span>
+                        <span className="whitespace-nowrap overflow-visible font-black">BẢNG VÀNG THÀNH TÍCH</span>
                       </h2>
-                      <span className="text-[11px] font-bold text-amber-800/80 block">
+                      <span className="text-[11px] font-bold text-amber-800/80 block truncate">
                         {classInfo?.name || "Lớp học"}
                       </span>
                     </div>
                   </div>
-                  <span className="bg-amber-200/80 text-amber-950 text-[10px] font-black px-2.5 py-1 rounded-xl shrink-0">
+                  <span className="bg-amber-200/80 text-amber-950 text-[10px] font-black px-2 sm:px-2.5 py-1 rounded-xl shrink-0 whitespace-nowrap">
                     TOP 10
                   </span>
                 </div>
@@ -496,7 +532,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                       <Trophy className="w-5 h-5 text-amber-500" />
                     </div>
                     <p className="text-xs font-bold text-slate-700 leading-relaxed">
-                      🏆 Bảng vàng thành tích sẽ được cập nhật sau khi các bạn hoàn thành bài kiểm tra đầu tiên!
+                      <span className="whitespace-nowrap font-black">🏆 Bảng vàng thành tích</span> sẽ được cập nhật sau khi các bạn hoàn thành bài kiểm tra đầu tiên!
                     </p>
                   </div>
                 ) : (
@@ -629,6 +665,8 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
 
         <Footer className="mt-12 pt-6 border-t border-slate-200/60" />

@@ -4,12 +4,13 @@ import ClassManager from "./ClassManager";
 import ExamCreator from "./ExamCreator";
 import ExamBank from "./ExamBank";
 import TeacherReportScreen from "./TeacherReportScreen";
+import GameManager from "./GameManager";
 import TeacherSettingsModal from "./TeacherSettingsModal";
 import Footer from "./Footer";
 import { 
   BarChart, Users, BookOpen, Clock, Activity, LogOut, 
   Sparkles, Layers, BarChart2, Plus, ArrowRight, CheckCircle2, RefreshCw,
-  User as UserIcon, Lock, Settings, ChevronDown, UserCheck
+  User as UserIcon, Lock, Settings, ChevronDown, UserCheck, Gamepad2
 } from "lucide-react";
 
 import { fsGetTeacherOverview } from "../lib/firestoreData";
@@ -21,7 +22,7 @@ interface TeacherDashboardProps {
 }
 
 export default function TeacherDashboard({ user, onLogout, onUpdateUser }: TeacherDashboardProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "classes" | "ai-create" | "exams" | "reports">("overview");
+  const [activeTab, setActiveTab] = useState<"overview" | "classes" | "ai-create" | "exams" | "reports" | "games-manager">("overview");
   const [stats, setStats] = useState<TeacherStats | null>(null);
   const [recentExams, setRecentExams] = useState<any[]>([]);
   const [activeAssignments, setActiveAssignments] = useState<any[]>([]);
@@ -179,6 +180,18 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
             >
               <BarChart2 className="w-5 h-5 shrink-0" />
               Kết quả học tập
+            </button>
+            <button
+              id="tab-games-manager"
+              onClick={() => setActiveTab("games-manager")}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl cursor-pointer transition-all ${
+                activeTab === "games-manager"
+                  ? "bg-indigo-600 text-white font-black shadow-lg shadow-indigo-600/30"
+                  : "text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+              }`}
+            >
+              <Gamepad2 className="w-5 h-5 shrink-0 text-amber-400" />
+              Trò chơi học tập
             </button>
           </nav>
         </div>
@@ -505,6 +518,7 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
         {activeTab === "ai-create" && <ExamCreator onExamSaved={() => setActiveTab("exams")} />}
         {activeTab === "exams" && <ExamBank onAssignCreated={() => setActiveTab("reports")} />}
         {activeTab === "reports" && <TeacherReportScreen teacherId={user.id} />}
+        {activeTab === "games-manager" && <GameManager user={user} />}
 
         <Footer className="mt-12 pt-6 border-t border-slate-200/60" />
       </main>

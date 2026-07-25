@@ -22,6 +22,7 @@ import {
   where 
 } from "firebase/firestore";
 import { auth, db as firestoreDb } from "./firebase";
+import { DEFAULT_SEED_DATA } from "./lib/firestoreData";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -31,10 +32,26 @@ export default function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [studentCode, setStudentCode] = useState("");
+  const [classesList, setClassesList] = useState<any[]>([]);
   
   const [appLoading, setAppLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch classes list to dynamically render student login code suggestions & placeholders
+    const fetchClasses = async () => {
+      try {
+        const appDataSnap = await getDoc(doc(firestoreDb, "appData", "main"));
+        if (appDataSnap.exists() && appDataSnap.data()?.classes) {
+          setClassesList(appDataSnap.data().classes);
+        }
+      } catch (err) {
+        console.warn("Notice fetching classes list for hints:", err);
+      }
+    };
+    fetchClasses();
+  }, []);
 
   useEffect(() => {
     // Listen to Firebase auth state changes
@@ -276,9 +293,23 @@ export default function App() {
           const classes = appData.classes || [];
 
           for (const cls of classes) {
-            const std = cls.students?.find(
-              (s: any) => s.studentCode && s.studentCode.trim().toUpperCase() === cleanCode
-            );
+            const classCode = (cls.classCode || "").trim().toUpperCase();
+            const std = cls.students?.find((s: any, idx: number) => {
+              if (!s.studentCode) return false;
+              const sCode = s.studentCode.trim().toUpperCase();
+              if (sCode === cleanCode) return true;
+
+              // Generated format rule: HS + classCode + STT (e.g., HSTH5C7701)
+              const genCode = `HS${classCode}${(idx + 1).toString().padStart(2, "0")}`;
+              if (genCode === cleanCode) return true;
+
+              // Loose match for legacy or short codes (e.g., HS5C01 vs HSTH5C7701)
+              if (classCode && (sCode.replace(classCode, "") === cleanCode || cleanCode.replace(classCode, "") === sCode)) {
+                return true;
+              }
+
+              return false;
+            });
             if (std) {
               if (std.isActive === false || std.active === false || std.status === "inactive") {
                 isInactive = true;
@@ -286,7 +317,7 @@ export default function App() {
                 foundStudent = {
                   id: std.id,
                   name: std.name,
-                  studentCode: cleanCode,
+                  studentCode: std.studentCode || cleanCode,
                   role: "student",
                   classId: cls.id,
                   className: cls.name
@@ -476,17 +507,9 @@ export default function App() {
                   required
                   value={studentCode}
                   onChange={(e) => setStudentCode(e.target.value)}
-                  placeholder="Ví dụ: HS5C01, HS3A01, HS4B01..."
+                  placeholder="Ví dụ: HS5C01..."
                   className="w-full bg-slate-50 border border-slate-100 hover:border-slate-200 focus:bg-white rounded-2xl pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-bold text-slate-800 uppercase"
                 />
-              </div>
-              <div className="bg-amber-50/50 p-4 rounded-2xl text-[11px] text-amber-800 font-medium border border-amber-100/50 leading-relaxed">
-                💡 <strong>Gợi ý thử nghiệm:</strong> Thầy/cô có thể dùng các mã học sinh mặc định sau để kiểm tra giao diện học sinh:
-                <ul className="list-disc pl-4 mt-2 font-bold space-y-1">
-                  <li>Khối 5: <span className="font-mono bg-amber-100/80 text-amber-900 px-1 py-0.5 rounded text-xs select-all">HS5C01</span> hoặc <span className="font-mono bg-amber-100/80 text-amber-900 px-1 py-0.5 rounded text-xs select-all">HS5C02</span></li>
-                  <li>Khối 4: <span className="font-mono bg-amber-100/80 text-amber-900 px-1 py-0.5 rounded text-xs select-all">HS4B01</span></li>
-                  <li>Khối 3: <span className="font-mono bg-amber-100/80 text-amber-900 px-1 py-0.5 rounded text-xs select-all">HS3A01</span></li>
-                </ul>
               </div>
             </div>
 

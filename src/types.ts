@@ -104,6 +104,19 @@ export interface TeacherStats {
   activeAssignments: number;
 }
 
+export interface Game {
+  id: string;
+  title: string;
+  description: string;
+  grade: string;
+  topic: string;
+  imageUrl?: string;
+  gameUrl: string;
+  status: "active" | "hidden";
+  teacherId?: string;
+  createdAt: string;
+}
+
 export interface User {
   id: string;
   name: string;

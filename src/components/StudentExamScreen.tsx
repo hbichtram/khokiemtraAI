@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Question, QuestionOption, getOptionText, getOptionImage } from "../types";
 import { 
   Timer, ChevronLeft, ChevronRight, CheckCircle, 
-  HelpCircle, AlertCircle, RefreshCw 
+  HelpCircle, AlertCircle, RefreshCw, Sparkles 
 } from "lucide-react";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db as firestoreDb } from "../firebase";
@@ -386,9 +386,15 @@ export default function StudentExamScreen({
         {/* Exam Title header */}
         <div className="bg-amber-50 border-b border-amber-100 p-5 flex justify-between items-center flex-wrap gap-4">
           <div>
-            <span className="text-[10px] bg-amber-200/60 text-amber-800 font-black px-3 py-1 rounded-xl uppercase tracking-wider">
-              BÀI LÀM TRỰC TIẾP
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] bg-amber-200/60 text-amber-800 font-black px-3 py-1 rounded-xl uppercase tracking-wider">
+                BÀI LÀM TRỰC TIẾP
+              </span>
+              <span id="student-slogan-badge" className="inline-flex items-center gap-1.5 text-xs font-extrabold text-amber-900 bg-amber-200/70 border border-amber-300/80 px-3 py-1 rounded-xl shadow-2xs">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                Học tập thông minh - Tiến bộ mỗi ngày
+              </span>
+            </div>
             <h2 className="text-base md:text-lg font-black text-slate-900 mt-2.5 leading-snug">{exam.title}</h2>
           </div>
 

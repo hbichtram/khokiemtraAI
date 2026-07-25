@@ -1,16 +1,17 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db as firestoreDb, auth } from "../firebase";
-import { Class, Exam, Student, Assignment, Submission, Question } from "../types";
+import { Class, Exam, Student, Assignment, Submission, Question, Game } from "../types";
 
 export interface AppDataSchema {
   classes: Class[];
   exams: Exam[];
   assignments: Assignment[];
   submissions: Submission[];
+  games?: Game[];
   updatedAt?: string;
 }
 
-const DEFAULT_SEED_DATA: AppDataSchema = {
+export const DEFAULT_SEED_DATA: AppDataSchema = {
   classes: [
     {
       id: "class-1",
@@ -18,9 +19,9 @@ const DEFAULT_SEED_DATA: AppDataSchema = {
       name: "Lớp 3A - Tin học Tiểu học",
       classCode: "TH3A99",
       students: [
-        { id: "student-1", name: "Nguyễn Văn An", studentCode: "HS3A01", classId: "class-1" },
-        { id: "student-2", name: "Lê Thị Bình", studentCode: "HS3A02", classId: "class-1" },
-        { id: "student-3", name: "Trần Minh Cường", studentCode: "HS3A03", classId: "class-1" }
+        { id: "student-1", name: "Nguyễn Văn An", studentCode: "HSTH3A9901", classId: "class-1" },
+        { id: "student-2", name: "Lê Thị Bình", studentCode: "HSTH3A9902", classId: "class-1" },
+        { id: "student-3", name: "Trần Minh Cường", studentCode: "HSTH3A9903", classId: "class-1" }
       ]
     },
     {
@@ -29,8 +30,8 @@ const DEFAULT_SEED_DATA: AppDataSchema = {
       name: "Lớp 4B - Lập trình Scratch",
       classCode: "TH4B88",
       students: [
-        { id: "student-4", name: "Phạm Hồng Đăng", studentCode: "HS4B01", classId: "class-2" },
-        { id: "student-5", name: "Đỗ Gia Huy", studentCode: "HS4B02", classId: "class-2" }
+        { id: "student-4", name: "Phạm Hồng Đăng", studentCode: "HSTH4B8801", classId: "class-2" },
+        { id: "student-5", name: "Đỗ Gia Huy", studentCode: "HSTH4B8802", classId: "class-2" }
       ]
     },
     {
@@ -39,8 +40,8 @@ const DEFAULT_SEED_DATA: AppDataSchema = {
       name: "Lớp 5C - Lắp ráp Robot",
       classCode: "TH5C77",
       students: [
-        { id: "student-6", name: "Vũ Khánh Linh", studentCode: "HS5C01", classId: "class-3" },
-        { id: "student-7", name: "Hoàng Minh Nam", studentCode: "HS5C02", classId: "class-3" }
+        { id: "student-6", name: "Vũ Khánh Linh", studentCode: "HSTH5C7701", classId: "class-3" },
+        { id: "student-7", name: "Hoàng Minh Nam", studentCode: "HSTH5C7702", classId: "class-3" }
       ]
     }
   ],
@@ -134,7 +135,45 @@ const DEFAULT_SEED_DATA: AppDataSchema = {
       status: "Đang diễn ra"
     }
   ],
-  submissions: []
+  submissions: [],
+  games: [
+    {
+      id: "game-1",
+      title: "Vua Gõ Bàn Phím (Typing Master)",
+      description: "Trò chơi rèn luyện kỹ năng gõ bàn phím nhanh, chuẩn xác cho học sinh tiểu học.",
+      grade: "Tin học 3",
+      topic: "Bàn phím & Chuột",
+      imageUrl: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80",
+      gameUrl: "builtin:typing",
+      status: "active",
+      teacherId: "teacher-default",
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "game-2",
+      title: "Thám Tử Lập Trình Scratch",
+      description: "Giải các câu đố thuật toán lặp và cấu trúc điều kiện để giúp chú mèo Scratch vượt qua chướng ngại vật.",
+      grade: "Tin học 4",
+      topic: "Lập trình Scratch",
+      imageUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80",
+      gameUrl: "https://turbowarp.org/10128407/embed",
+      status: "active",
+      teacherId: "teacher-default",
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "game-3",
+      title: "Đố Vui Tin Học & An Toàn Mạng",
+      description: "Trắc nghiệm thử thách phản xạ nhanh về các thiết bị máy tính và an toàn Internet.",
+      grade: "Tin học 5",
+      topic: "An toàn Internet",
+      imageUrl: "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=600&q=80",
+      gameUrl: "builtin:quiz",
+      status: "active",
+      teacherId: "teacher-default",
+      createdAt: new Date().toISOString()
+    }
+  ]
 };
 
 // Generate unique 6-character class code
@@ -186,13 +225,14 @@ export async function getAppData(): Promise<AppDataSchema> {
       const exams = data.exams || [];
       const assignments = data.assignments || [];
       const submissions = data.submissions || [];
+      const games = data.games || DEFAULT_SEED_DATA.games || [];
 
       const changed = updateAssignmentStatusesLocally(assignments);
       if (changed) {
-        await saveAppData({ classes, exams, assignments, submissions });
+        await saveAppData({ classes, exams, assignments, submissions, games });
       }
 
-      return { classes, exams, assignments, submissions };
+      return { classes, exams, assignments, submissions, games };
     } else {
       // Seed initial data
       await setDoc(docRef, {
@@ -762,3 +802,84 @@ export async function fsGetAssignmentReport(assignmentId: string): Promise<any> 
     questionAnalysis
   };
 }
+
+// ==========================================
+// GAMES CRUD
+// ==========================================
+export async function fsGetGames(): Promise<Game[]> {
+  const data = await getAppData();
+  const rawGames = data.games || DEFAULT_SEED_DATA.games || [];
+  return rawGames.map((g) => {
+    if (g.gameUrl && g.gameUrl.includes("scratch.mit.edu/projects/")) {
+      const match = g.gameUrl.match(/scratch\.mit\.edu\/projects\/(\d+)/i);
+      if (match && match[1]) {
+        return {
+          ...g,
+          gameUrl: `https://turbowarp.org/${match[1]}/embed?autoplay=true`
+        };
+      }
+    }
+    return g;
+  });
+}
+
+export async function fsCreateGame(gameData: Omit<Game, "id" | "createdAt">): Promise<Game> {
+  const data = await getAppData();
+  if (!Array.isArray(data.games)) {
+    data.games = [];
+  }
+
+  let finalUrl = gameData.gameUrl;
+  if (finalUrl && finalUrl.includes("scratch.mit.edu/projects/")) {
+    const match = finalUrl.match(/scratch\.mit\.edu\/projects\/(\d+)/i);
+    if (match && match[1]) {
+      finalUrl = `https://turbowarp.org/${match[1]}/embed?autoplay=true`;
+    }
+  }
+
+  const newGame: Game = {
+    ...gameData,
+    gameUrl: finalUrl,
+    id: `game-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    createdAt: new Date().toISOString()
+  };
+  data.games.unshift(newGame);
+  await saveAppData(data);
+  return newGame;
+}
+
+export async function fsUpdateGame(id: string, updatedFields: Partial<Game>): Promise<Game> {
+  const data = await getAppData();
+  if (!Array.isArray(data.games)) {
+    data.games = [];
+  }
+  const idx = data.games.findIndex((g) => g.id === id);
+  if (idx === -1) {
+    throw new Error("Không tìm thấy trò chơi để cập nhật.");
+  }
+
+  let finalFields = { ...updatedFields };
+  if (finalFields.gameUrl && finalFields.gameUrl.includes("scratch.mit.edu/projects/")) {
+    const match = finalFields.gameUrl.match(/scratch\.mit\.edu\/projects\/(\d+)/i);
+    if (match && match[1]) {
+      finalFields.gameUrl = `https://turbowarp.org/${match[1]}/embed?autoplay=true`;
+    }
+  }
+
+  data.games[idx] = {
+    ...data.games[idx],
+    ...finalFields
+  };
+  await saveAppData(data);
+  return data.games[idx];
+}
+
+export async function fsDeleteGame(id: string): Promise<void> {
+  const data = await getAppData();
+  if (!Array.isArray(data.games)) {
+    data.games = [];
+  }
+  data.games = data.games.filter((g) => g.id !== id);
+  await saveAppData(data);
+}
+
