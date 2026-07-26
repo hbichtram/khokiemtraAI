@@ -30,24 +30,31 @@ export default function StudentGamesScreen({ user }: StudentGamesScreenProps) {
   const fetchGamePoints = async () => {
     if (!user || user.role !== "student") return;
     const studentId = user.id || user.studentCode || "student-default";
+    const studentCode = user.studentCode || "";
+
+    console.log("[GAME] Fetching student game points for", { studentId, studentCode });
+
     try {
-      const res = await fetch(`/api/student/${studentId}/game-history`);
+      // Direct Firestore fetch
+      const fsData = await fsGetStudentGameHistory(studentId, studentCode);
+      setTotalGamePoints(fsData.totalGamePoints);
+      setGameHistoryList(fsData.gameHistory);
+      console.log("[GAME] Total points loaded from Firestore:", fsData.totalGamePoints, "History count:", fsData.gameHistory.length);
+      return;
+    } catch (fsErr) {
+      console.error("Firestore get student game history error, fallback to API:", fsErr);
+    }
+
+    try {
+      const res = await fetch(`/api/student/${studentId}/game-history?studentCode=${encodeURIComponent(studentCode)}`);
       if (res.ok) {
         const data = await res.json();
         setTotalGamePoints(data.totalGamePoints || 0);
         setGameHistoryList(data.gameHistory || []);
-        return;
+        console.log("[GAME] Total points loaded from API fallback:", data.totalGamePoints);
       }
     } catch (e) {
-      console.warn("API game history fetch error, falling back to Firestore:", e);
-    }
-
-    try {
-      const fsData = await fsGetStudentGameHistory(studentId);
-      setTotalGamePoints(fsData.totalGamePoints);
-      setGameHistoryList(fsData.gameHistory);
-    } catch (fsErr) {
-      console.error("Firestore get student game history error:", fsErr);
+      console.warn("API game history fetch error:", e);
     }
   };
 

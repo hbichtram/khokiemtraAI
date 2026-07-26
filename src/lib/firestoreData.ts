@@ -174,7 +174,8 @@ export const DEFAULT_SEED_DATA: AppDataSchema = {
       teacherId: "teacher-default",
       createdAt: new Date().toISOString()
     }
-  ]
+  ],
+  gameHistory: []
 };
 
 // Generate unique 6-character class code
@@ -227,13 +228,14 @@ export async function getAppData(): Promise<AppDataSchema> {
       const assignments = data.assignments || [];
       const submissions = data.submissions || [];
       const games = data.games || DEFAULT_SEED_DATA.games || [];
+      const gameHistory = data.gameHistory || [];
 
       const changed = updateAssignmentStatusesLocally(assignments);
       if (changed) {
-        await saveAppData({ classes, exams, assignments, submissions, games });
+        await saveAppData({ classes, exams, assignments, submissions, games, gameHistory });
       }
 
-      return { classes, exams, assignments, submissions, games };
+      return { classes, exams, assignments, submissions, games, gameHistory };
     } else {
       // Seed initial data
       await setDoc(docRef, {
@@ -978,6 +980,11 @@ export async function fsRecordGameCompletion(record: {
   score: number;
   rewardPoints: number;
 }): Promise<{ totalGamePoints: number; gameHistory: GameRecord[]; newRecord: GameRecord }> {
+  console.log("[GAME] Game completed", { gameId: record.gameId, gameName: record.gameName, score: record.score });
+  console.log("[GAME] Current student ID", { studentId: record.studentId, studentCode: record.studentCode, studentName: record.studentName });
+  console.log("[GAME] Calculated reward points", record.rewardPoints);
+  console.log("[GAME] Saving reward points...");
+
   const data = await getAppData();
   if (!Array.isArray(data.gameHistory)) {
     data.gameHistory = [];
@@ -997,16 +1004,27 @@ export async function fsRecordGameCompletion(record: {
 
   data.gameHistory.unshift(newRecord);
 
-  // Compute student's total points across all records
-  const studentRecords = data.gameHistory.filter(
-    (r) =>
-      r.studentId === record.studentId ||
-      (record.studentCode && r.studentCode && r.studentCode.toUpperCase() === record.studentCode.toUpperCase())
-  );
+  // Compute student's total points across all records with flexible case-insensitive matching
+  const targetId = (record.studentId || "").trim().toUpperCase();
+  const targetCode = (record.studentCode || "").trim().toUpperCase();
+
+  const studentRecords = data.gameHistory.filter((r) => {
+    const rId = (r.studentId || "").trim().toUpperCase();
+    const rCode = (r.studentCode || "").trim().toUpperCase();
+    return (
+      (targetId && rId === targetId) ||
+      (targetCode && rCode === targetCode) ||
+      (targetCode && rId === targetCode) ||
+      (targetId && rCode === targetId)
+    );
+  });
 
   const totalGamePoints = studentRecords.reduce((sum, r) => sum + (r.rewardPoints || 0), 0);
 
   await saveAppData(data);
+
+  console.log("[GAME] Firestore write result", { success: true, recordId: newRecord.id });
+  console.log("[GAME] Updated total points", totalGamePoints);
 
   return {
     totalGamePoints,
@@ -1020,17 +1038,27 @@ export async function fsGetStudentGameHistory(studentId: string, studentCode?: s
   gameHistory: GameRecord[];
   gamesCompletedCount: number;
 }> {
+  console.log("[GAME] Fetching student game history for studentId:", studentId, "studentCode:", studentCode);
   const data = await getAppData();
   const rawHistory = data.gameHistory || [];
 
-  const studentRecords = rawHistory.filter(
-    (r) =>
-      r.studentId === studentId ||
-      (studentCode && r.studentCode && r.studentCode.toUpperCase() === studentCode.toUpperCase()) ||
-      (r.studentId && studentCode && r.studentId.toUpperCase() === studentCode.toUpperCase())
-  );
+  const targetId = (studentId || "").trim().toUpperCase();
+  const targetCode = (studentCode || "").trim().toUpperCase();
+
+  const studentRecords = rawHistory.filter((r) => {
+    const rId = (r.studentId || "").trim().toUpperCase();
+    const rCode = (r.studentCode || "").trim().toUpperCase();
+    return (
+      (targetId && rId === targetId) ||
+      (targetCode && rCode === targetCode) ||
+      (targetCode && rId === targetCode) ||
+      (targetId && rCode === targetId)
+    );
+  });
 
   const totalGamePoints = studentRecords.reduce((sum, r) => sum + (r.rewardPoints || 0), 0);
+
+  console.log("[GAME] Updated total points fetched from Firestore:", totalGamePoints, "Records count:", studentRecords.length);
 
   return {
     totalGamePoints,

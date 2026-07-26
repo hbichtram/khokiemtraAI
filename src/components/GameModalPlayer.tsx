@@ -63,35 +63,10 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
     const studentName = user.name || "Học sinh";
     const rewardPts = 20;
 
-    try {
-      // API call
-      const res = await fetch("/api/student/game-record", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          studentId,
-          studentCode,
-          studentName,
-          gameId: game.id,
-          gameName: game.title,
-          score: 100,
-          rewardPoints: rewardPts
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setClaimedReward({
-          pointsEarned: rewardPts,
-          totalPoints: data.totalGamePoints || rewardPts
-        });
-        if (onRewardEarned) onRewardEarned(rewardPts, game.title);
-        setClaiming(false);
-        return;
-      }
-    } catch (e) {
-      console.warn("API claim reward fallback to Firestore:", e);
-    }
+    console.log("[GAME] Game completed", { gameId: game.id, gameName: game.title, score: 100 });
+    console.log("[GAME] Current student ID", { studentId, studentCode, studentName });
+    console.log("[GAME] Calculated reward points", rewardPts);
+    console.log("[GAME] Saving reward points...");
 
     try {
       const result = await fsRecordGameCompletion({
@@ -103,11 +78,34 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
         score: 100,
         rewardPoints: rewardPts
       });
+
+      console.log("[GAME] Firestore write result", { success: true, recordId: result.newRecord?.id });
+      console.log("[GAME] Updated total points", result.totalGamePoints);
+
       setClaimedReward({
         pointsEarned: rewardPts,
         totalPoints: result.totalGamePoints
       });
-      if (onRewardEarned) onRewardEarned(rewardPts, game.title);
+
+      if (onRewardEarned) {
+        onRewardEarned(rewardPts, game.title);
+      }
+
+      // Sync to API in background if API is available
+      fetch("/api/student/game-record", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId,
+          studentCode,
+          studentName,
+          gameId: game.id,
+          gameName: game.title,
+          score: 100,
+          rewardPoints: rewardPts
+        })
+      }).catch((e) => console.log("Optional API sync notice:", e));
+
     } catch (fsErr) {
       console.error("Firestore claim reward error:", fsErr);
     } finally {

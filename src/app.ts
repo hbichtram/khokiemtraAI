@@ -295,6 +295,7 @@ async function syncToFirebase() {
       assignments: db.assignments,
       submissions: db.submissions,
       games: db.games || [],
+      gameHistory: db.gameHistory || [],
       updatedAt: new Date().toISOString()
     });
   } catch (err) {

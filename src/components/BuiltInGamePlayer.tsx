@@ -46,9 +46,37 @@ async function saveGameReward(
   const studentCode = user.studentCode || "";
   const studentName = user.name || "Học sinh";
 
+  console.log("[GAME] Game completed", { gameId, gameName, score });
+  console.log("[GAME] Current student ID", { studentId, studentCode, studentName });
+  console.log("[GAME] Calculated reward points", rewardPoints);
+  console.log("[GAME] Saving reward points...");
+
   try {
-    // 1. Try Express API
-    const res = await fetch("/api/student/game-record", {
+    // Primary & Reliable: Write directly to Firestore from Web SDK (works on Preview and Vercel Production)
+    const result = await fsRecordGameCompletion({
+      studentId,
+      studentCode,
+      studentName,
+      gameId,
+      gameName,
+      score,
+      rewardPoints
+    });
+
+    console.log("[GAME] Firestore write result", { success: true, recordId: result.newRecord?.id });
+    console.log("[GAME] Updated total points", result.totalGamePoints);
+
+    setSavedInfo({
+      pointsEarned: result.newRecord.rewardPoints,
+      totalPoints: result.totalGamePoints
+    });
+
+    if (onRewardEarned) {
+      onRewardEarned(rewardPoints, gameName);
+    }
+
+    // Also sync to Express API if running in environment with Express server
+    fetch("/api/student/game-record", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -60,37 +88,8 @@ async function saveGameReward(
         score,
         rewardPoints
       })
-    });
+    }).catch((e) => console.log("Optional API sync notice:", e));
 
-    if (res.ok) {
-      const data = await res.json();
-      setSavedInfo({
-        pointsEarned: data.newRecord?.rewardPoints || rewardPoints,
-        totalPoints: data.totalGamePoints || 0
-      });
-      if (onRewardEarned) onRewardEarned(rewardPoints, gameName);
-      return;
-    }
-  } catch (err) {
-    console.warn("Express API saveGameRecord fallback to Firestore:", err);
-  }
-
-  // 2. Firestore fallback
-  try {
-    const result = await fsRecordGameCompletion({
-      studentId,
-      studentCode,
-      studentName,
-      gameId,
-      gameName,
-      score,
-      rewardPoints
-    });
-    setSavedInfo({
-      pointsEarned: result.newRecord.rewardPoints,
-      totalPoints: result.totalGamePoints
-    });
-    if (onRewardEarned) onRewardEarned(rewardPoints, gameName);
   } catch (fsErr) {
     console.error("Firestore saveGameRecord error:", fsErr);
   }
