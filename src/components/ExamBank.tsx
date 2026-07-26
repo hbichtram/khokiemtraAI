@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Exam, Class } from "../types";
+import { Exam, Class, Question, getOptionText, getOptionImage } from "../types";
 import { 
   FileText, Trash2, Copy, Send, Eye, Edit3, X, 
-  Calendar, Check, AlertCircle, RefreshCw, Layers 
+  Calendar, Check, AlertCircle, RefreshCw, Layers,
+  Image as ImageIcon, Upload, CheckCircle2, Sparkles, HelpCircle
 } from "lucide-react";
 import {
   fsGetExams,
@@ -10,8 +11,10 @@ import {
   fsDeleteExam,
   fsCopyExam,
   fsCreateAssignment,
-  fsUpdateExamTitle
+  fsUpdateExamTitle,
+  fsUpdateExam
 } from "../lib/firestoreData";
+import { compressImage } from "../lib/imageStorage";
 
 // Helper function to normalize grade for filtering & display
 function getDisplayGrade(gradeStr?: string, titleStr?: string): string {
@@ -52,6 +55,15 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [savingTitle, setSavingTitle] = useState(false);
+
+  // Edit Question State
+  const [editingQuestionState, setEditingQuestionState] = useState<{
+    examId: string;
+    examTitle: string;
+    questionIndex: number;
+    question: Question;
+  } | null>(null);
+  const [savingQuestion, setSavingQuestion] = useState(false);
 
   // Giao bài Form State
   const [selectedClassId, setSelectedClassId] = useState("");
@@ -138,6 +150,212 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
       setError(err.message || "Lỗi khi cập nhật tên đề thi.");
     } finally {
       setSavingTitle(false);
+    }
+  };
+
+  // Question Edit Handlers
+  const handleStartEditQuestion = (exam: Exam, questionIndex: number) => {
+    const targetQ = exam.questions[questionIndex];
+    if (!targetQ) return;
+
+    const clonedQuestion: Question = {
+      id: targetQ.id || `q-${Date.now()}-${questionIndex}`,
+      question: targetQ.question || "",
+      imageUrl: targetQ.imageUrl || "",
+      options: Array.isArray(targetQ.options)
+        ? targetQ.options.map((opt) => {
+            if (typeof opt === "object" && opt !== null) {
+              return { text: opt.text || "", imageUrl: opt.imageUrl || "" };
+            }
+            return String(opt || "");
+          })
+        : ["", "", "", ""],
+      correctAnswer: targetQ.correctAnswer ? targetQ.correctAnswer.toUpperCase() : "A",
+      explanation: targetQ.explanation || "",
+      keyPoint: targetQ.keyPoint || "",
+      difficulty: targetQ.difficulty || "Nhận biết"
+    };
+
+    while (clonedQuestion.options.length < 4) {
+      clonedQuestion.options.push("");
+    }
+
+    setEditingQuestionState({
+      examId: exam.id,
+      examTitle: exam.title,
+      questionIndex,
+      question: clonedQuestion
+    });
+  };
+
+  const handleEditQuestionField = (field: keyof Question, value: any) => {
+    if (!editingQuestionState) return;
+    setEditingQuestionState({
+      ...editingQuestionState,
+      question: {
+        ...editingQuestionState.question,
+        [field]: value
+      }
+    });
+  };
+
+  const handleEditOptionText = (optionIndex: number, newText: string) => {
+    if (!editingQuestionState) return;
+    const currentOptions = [...editingQuestionState.question.options];
+    const oldOpt = currentOptions[optionIndex];
+
+    if (typeof oldOpt === "object" && oldOpt !== null) {
+      currentOptions[optionIndex] = { ...oldOpt, text: newText };
+    } else {
+      currentOptions[optionIndex] = newText;
+    }
+
+    setEditingQuestionState({
+      ...editingQuestionState,
+      question: {
+        ...editingQuestionState.question,
+        options: currentOptions
+      }
+    });
+  };
+
+  const handleQuestionImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingQuestionState) return;
+
+    try {
+      const dataUrl = await compressImage(file, 900, 900, 0.82);
+      handleEditQuestionField("imageUrl", dataUrl);
+    } catch (err: any) {
+      setError(err.message || "Lỗi khi tải ảnh minh họa câu hỏi.");
+    }
+  };
+
+  const handleRemoveQuestionImage = () => {
+    if (!editingQuestionState) return;
+    handleEditQuestionField("imageUrl", undefined);
+  };
+
+  const handleOptionImageUpload = async (optionIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingQuestionState) return;
+
+    try {
+      const dataUrl = await compressImage(file, 600, 600, 0.82);
+      const currentOptions = [...editingQuestionState.question.options];
+      const oldOpt = currentOptions[optionIndex];
+      const oldText = getOptionText(oldOpt);
+
+      currentOptions[optionIndex] = { text: oldText, imageUrl: dataUrl };
+
+      setEditingQuestionState({
+        ...editingQuestionState,
+        question: {
+          ...editingQuestionState.question,
+          options: currentOptions
+        }
+      });
+    } catch (err: any) {
+      setError(err.message || "Lỗi khi tải ảnh phương án.");
+    }
+  };
+
+  const handleRemoveOptionImage = (optionIndex: number) => {
+    if (!editingQuestionState) return;
+    const currentOptions = [...editingQuestionState.question.options];
+    const oldOpt = currentOptions[optionIndex];
+    const oldText = getOptionText(oldOpt);
+
+    currentOptions[optionIndex] = oldText;
+
+    setEditingQuestionState({
+      ...editingQuestionState,
+      question: {
+        ...editingQuestionState.question,
+        options: currentOptions
+      }
+    });
+  };
+
+  const handleSaveQuestionEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingQuestionState) return;
+
+    const { examId, questionIndex, question } = editingQuestionState;
+
+    if (!question.question.trim()) {
+      setError("Nội dung câu hỏi không được để trống!");
+      return;
+    }
+
+    for (let i = 0; i < 4; i++) {
+      const optText = getOptionText(question.options[i]).trim();
+      if (!optText) {
+        setError(`Phương án ${["A", "B", "C", "D"][i]} không được để trống!`);
+        return;
+      }
+    }
+
+    if (!["A", "B", "C", "D"].includes(question.correctAnswer)) {
+      setError("Vui lòng chọn đáp án đúng (A, B, C hoặc D)!");
+      return;
+    }
+
+    setSavingQuestion(true);
+    setError(null);
+
+    try {
+      const targetExam = exams.find((e) => e.id === examId) || viewingExam;
+      if (!targetExam) throw new Error("Không tìm thấy bài kiểm tra!");
+
+      const updatedQuestions = targetExam.questions.map((q, idx) => {
+        if (idx === questionIndex) {
+          return {
+            ...question,
+            question: question.question.trim(),
+            correctAnswer: question.correctAnswer.toUpperCase(),
+            explanation: question.explanation.trim(),
+            keyPoint: (question.keyPoint || "").trim(),
+            difficulty: question.difficulty || "Nhận biết"
+          };
+        }
+        return q;
+      });
+
+      let updated = false;
+      try {
+        const res = await fetch(`/api/exams/${examId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ questions: updatedQuestions })
+        });
+        if (res.ok) {
+          updated = true;
+        }
+      } catch (err) {
+        console.warn("API update questions failed, fallback to Firestore:", err);
+      }
+
+      if (!updated) {
+        await fsUpdateExam(examId, { questions: updatedQuestions });
+      }
+
+      setExams((prevExams) =>
+        prevExams.map((ex) => (ex.id === examId ? { ...ex, questions: updatedQuestions } : ex))
+      );
+
+      if (viewingExam && viewingExam.id === examId) {
+        setViewingExam((prev) => (prev ? { ...prev, questions: updatedQuestions } : null));
+      }
+
+      setSuccess(`Cập nhật thành công câu hỏi số ${questionIndex + 1}!`);
+      setTimeout(() => setSuccess(null), 3500);
+
+      setEditingQuestionState(null);
+    } catch (err: any) {
+      setError(err.message || "Lỗi khi cập nhật nội dung câu hỏi.");
+    } finally {
+      setSavingQuestion(false);
     }
   };
 
@@ -481,43 +699,87 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
               </div>
 
               <div className="space-y-6">
-                <h4 className="font-black text-slate-800 text-sm uppercase tracking-wider border-b border-slate-50 pb-2">Danh sách các câu hỏi của đề</h4>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <h4 className="font-black text-slate-800 text-sm uppercase tracking-wider">Danh sách các câu hỏi của đề</h4>
+                  <span className="text-xs text-slate-500 font-medium">
+                    Bấm nút <strong className="text-indigo-600 font-black">"Sửa câu hỏi"</strong> ở từng câu để chỉnh sửa nội dung
+                  </span>
+                </div>
+
                 {viewingExam.questions?.map((q, qIdx) => (
-                  <div key={q.id} className="border border-slate-100 rounded-[24px] p-5 space-y-4 bg-slate-50/30">
-                    <div className="flex items-center gap-2">
-                      <span className="bg-slate-900 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center">
-                        {qIdx + 1}
-                      </span>
-                      <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-lg uppercase">
-                        {q.difficulty}
-                      </span>
+                  <div key={q.id || qIdx} className="border border-slate-200/80 rounded-[24px] p-5 space-y-4 bg-slate-50/30 hover:border-indigo-200 transition-all">
+                    <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-slate-900 text-white text-xs font-black w-6 h-6 rounded-full flex items-center justify-center">
+                          {qIdx + 1}
+                        </span>
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-lg uppercase ${
+                          q.difficulty === "Vận dụng"
+                            ? "bg-rose-50 text-rose-700 border border-rose-100"
+                            : q.difficulty === "Thông hiểu"
+                            ? "bg-blue-50 text-blue-700 border border-blue-100"
+                            : "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                        }`}>
+                          Mức độ: {q.difficulty || "Nhận biết"}
+                        </span>
+                      </div>
+
+                      <button
+                        id={`btn-edit-question-${q.id || qIdx}`}
+                        type="button"
+                        onClick={() => handleStartEditQuestion(viewingExam, qIdx)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl border border-indigo-500 transition-all cursor-pointer flex items-center gap-1.5 shadow-xs active:scale-95"
+                        title="Chỉnh sửa nội dung câu hỏi này"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Sửa câu hỏi</span>
+                      </button>
                     </div>
 
                     <p className="font-black text-slate-900 text-sm leading-relaxed">{q.question}</p>
+
+                    {q.imageUrl && (
+                      <div className="my-2">
+                        <img src={q.imageUrl} alt="Minh họa câu hỏi" className="max-h-52 object-contain rounded-2xl border border-slate-200 bg-white p-1" />
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                       {q.options.map((opt, oIdx) => {
                         const letter = ["A", "B", "C", "D"][oIdx];
                         const isCorrect = q.correctAnswer === letter;
+                        const optText = getOptionText(opt);
+                        const optImg = getOptionImage(opt, q, oIdx);
+
                         return (
                           <div
                             key={oIdx}
                             className={`flex items-center gap-3 px-4 py-3 rounded-2xl border ${
                               isCorrect
-                                ? "bg-emerald-50 border-emerald-200 text-emerald-900 font-extrabold shadow-sm"
-                                : "bg-white border-slate-100 text-slate-600"
+                                ? "bg-emerald-50 border-emerald-300 text-emerald-950 font-black shadow-2xs"
+                                : "bg-white border-slate-200 text-slate-700 font-medium"
                             }`}
                           >
                             <span
                               className={`w-6 h-6 rounded-xl text-xs font-black flex items-center justify-center shrink-0 ${
                                 isCorrect
-                                  ? "bg-emerald-500 text-white shadow-sm"
+                                  ? "bg-emerald-500 text-white shadow-xs"
                                   : "bg-slate-100 text-slate-500"
                               }`}
                             >
                               {letter}
                             </span>
-                            <span>{opt}</span>
+                            <div className="flex-1">
+                              <span>{optText}</span>
+                              {optImg && (
+                                <img src={optImg} alt="" className="h-10 w-10 object-cover rounded-lg border border-slate-200 mt-1" />
+                              )}
+                            </div>
+                            {isCorrect && (
+                              <span className="text-[10px] bg-emerald-200/60 text-emerald-800 font-extrabold px-2 py-0.5 rounded-md uppercase shrink-0">
+                                Đúng
+                              </span>
+                            )}
                           </div>
                         );
                       })}
@@ -527,10 +789,12 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
                       <p>
                         💡 <strong>Lời giải thích chi tiết:</strong> {q.explanation}
                       </p>
-                      <p>
-                        ⭐ <strong>Học sinh lớp Tin tiểu học ghi nhớ:</strong>{" "}
-                        <span className="text-indigo-800 font-bold bg-indigo-100/50 px-1.5 py-0.5 rounded-lg">{q.keyPoint}</span>
-                      </p>
+                      {q.keyPoint && (
+                        <p>
+                          ⭐ <strong>Học sinh lớp Tin tiểu học ghi nhớ:</strong>{" "}
+                          <span className="text-indigo-800 font-bold bg-indigo-100/50 px-1.5 py-0.5 rounded-lg">{q.keyPoint}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -695,6 +959,283 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
                 >
                   {savingTitle && <RefreshCw className="w-4 h-4 animate-spin" />}
                   Lưu
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT QUESTION MODAL */}
+      {editingQuestionState && (
+        <div id="modal-edit-question" className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-[32px] w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl animate-scaleUp border border-slate-100 my-auto overflow-hidden">
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-slate-100 p-6 bg-slate-50/60 shrink-0">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 bg-indigo-50 border border-indigo-100 px-3 py-1 rounded-xl">
+                  SỬA CÂU HỎI SỐ {editingQuestionState.questionIndex + 1}
+                </span>
+                <h3 className="font-black text-slate-900 text-lg mt-1.5 leading-tight flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-indigo-600" />
+                  Chỉnh sửa nội dung câu hỏi
+                </h3>
+                <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                  Thuộc đề kiểm tra: <span className="text-slate-800 font-bold">{editingQuestionState.examTitle}</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingQuestionState(null)}
+                className="text-slate-400 hover:text-slate-600 p-2 bg-white rounded-2xl border border-slate-200 cursor-pointer shadow-2xs transition-colors shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <form onSubmit={handleSaveQuestionEdit} className="p-6 overflow-y-auto space-y-6 flex-1">
+              {/* Question Text */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                  Nội dung câu hỏi <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={editingQuestionState.question.question}
+                  onChange={(e) => handleEditQuestionField("question", e.target.value)}
+                  placeholder="Nhập nội dung câu hỏi tại đây..."
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-2xl p-4 text-sm font-bold text-slate-900 focus:outline-none transition-all leading-relaxed"
+                />
+              </div>
+
+              {/* Question Image (Optional) */}
+              <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-indigo-600" />
+                    Hình ảnh minh họa cho câu hỏi (Tùy chọn)
+                  </label>
+
+                  {!editingQuestionState.question.imageUrl && (
+                    <label className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl cursor-pointer inline-flex items-center gap-1.5 transition-colors shadow-2xs">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Tải ảnh minh họa</span>
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
+                        onChange={handleQuestionImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {editingQuestionState.question.imageUrl ? (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white p-3 rounded-xl border border-slate-200">
+                    <div className="relative rounded-lg overflow-hidden border border-slate-200 max-h-32 max-w-xs bg-slate-100 shrink-0">
+                      <img
+                        src={editingQuestionState.question.imageUrl}
+                        alt="Minh họa câu hỏi"
+                        className="max-h-28 object-contain"
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1.5 rounded-xl cursor-pointer flex items-center gap-1 border border-indigo-200 transition-colors">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Đổi ảnh khác
+                        <input
+                          type="file"
+                          accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
+                          onChange={handleQuestionImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleRemoveQuestionImage}
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 border border-rose-200 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Xóa ảnh
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Thêm hình ảnh trực quan giúp câu hỏi hấp dẫn hơn đối với học sinh tiểu học.
+                  </p>
+                )}
+              </div>
+
+              {/* Difficulty Level */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                  Mức độ nhận thức câu hỏi
+                </label>
+                <select
+                  value={editingQuestionState.question.difficulty}
+                  onChange={(e) => handleEditQuestionField("difficulty", e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-2xl px-4 py-3 text-xs font-bold text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  <option value="Nhận biết">Nhận biết (Mức độ Dễ)</option>
+                  <option value="Thông hiểu">Thông hiểu (Mức độ Trung bình)</option>
+                  <option value="Vận dụng">Vận dụng (Mức độ Thực hành / Thách thức)</option>
+                </select>
+              </div>
+
+              {/* Options & Correct Answer Selection */}
+              <div className="space-y-3 pt-2 border-t border-slate-100">
+                <div className="flex justify-between items-center flex-wrap gap-2">
+                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                    4 Phương án trả lời & Chọn đáp án đúng <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] text-indigo-700 font-bold bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100">
+                    💡 Bấm vào ký tự A, B, C, D để chọn phương án đúng
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {editingQuestionState.question.options.map((opt, oIdx) => {
+                    const letter = ["A", "B", "C", "D"][oIdx];
+                    const isCorrect = editingQuestionState.question.correctAnswer === letter;
+                    const optText = getOptionText(opt);
+                    const optImg = getOptionImage(opt, editingQuestionState.question, oIdx);
+
+                    return (
+                      <div
+                        key={oIdx}
+                        className={`border rounded-2xl p-3.5 space-y-3 transition-all ${
+                          isCorrect
+                            ? "bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-500/20"
+                            : "bg-slate-50/60 border-slate-200"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => handleEditQuestionField("correctAnswer", letter)}
+                            className={`w-10 h-10 shrink-0 rounded-2xl font-black text-xs flex items-center justify-center border transition-all cursor-pointer ${
+                              isCorrect
+                                ? "bg-emerald-500 border-emerald-600 text-white shadow-md shadow-emerald-200"
+                                : "bg-white hover:bg-slate-100 border-slate-300 text-slate-700"
+                            }`}
+                            title={`Đánh dấu ${letter} là đáp án đúng`}
+                          >
+                            {letter}
+                          </button>
+
+                          <input
+                            type="text"
+                            required
+                            value={optText}
+                            onChange={(e) => handleEditOptionText(oIdx, e.target.value)}
+                            placeholder={`Nội dung phương án ${letter}...`}
+                            className="flex-1 bg-white border border-slate-200 focus:ring-2 focus:ring-indigo-500 rounded-xl px-3.5 py-2.5 text-sm font-bold text-slate-900 focus:outline-none"
+                          />
+
+                          {!optImg && (
+                            <label
+                              className="text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 p-2 rounded-xl cursor-pointer transition-colors border border-slate-200 bg-white shrink-0"
+                              title="Tải ảnh minh họa cho lựa chọn này"
+                            >
+                              <ImageIcon className="w-4 h-4" />
+                              <input
+                                type="file"
+                                accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
+                                onChange={(e) => handleOptionImageUpload(oIdx, e)}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
+
+                        {/* Option Image Thumbnail */}
+                        {optImg && (
+                          <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200 ml-12">
+                            <img src={optImg} alt={`Minh họa phương án ${letter}`} className="h-12 w-12 object-cover rounded-lg border border-slate-200" />
+                            <div className="flex items-center gap-2 text-xs font-bold">
+                              <label className="text-indigo-600 hover:underline cursor-pointer">
+                                Đổi ảnh
+                                <input
+                                  type="file"
+                                  accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
+                                  onChange={(e) => handleOptionImageUpload(oIdx, e)}
+                                  className="hidden"
+                                />
+                              </label>
+                              <span className="text-slate-300">|</span>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveOptionImage(oIdx)}
+                                className="text-rose-600 hover:underline cursor-pointer"
+                              >
+                                Xóa
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {isCorrect && (
+                          <div className="flex items-center gap-1.5 text-emerald-700 font-extrabold text-xs ml-1">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                            <span>Được chọn làm ĐÁP ÁN ĐÚNG</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Explanation & Key point */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                    Lời giải thích đáp án
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editingQuestionState.question.explanation}
+                    onChange={(e) => handleEditQuestionField("explanation", e.target.value)}
+                    placeholder="Giải thích lý do chọn phương án đúng để học sinh tham khảo sau khi nộp bài..."
+                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-2xl p-3.5 text-xs font-semibold text-slate-800 focus:outline-none resize-none leading-relaxed"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                    Ghi nhớ kiến thức (Kiến thức trọng tâm)
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editingQuestionState.question.keyPoint || ""}
+                    onChange={(e) => handleEditQuestionField("keyPoint", e.target.value)}
+                    placeholder="Điểm kiến thức cốt lõi học sinh tiểu học cần ghi nhớ..."
+                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-2xl p-3.5 text-xs font-semibold text-slate-800 focus:outline-none resize-none leading-relaxed"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  id="btn-cancel-edit-question"
+                  onClick={() => setEditingQuestionState(null)}
+                  className="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-600 font-extrabold py-3.5 rounded-2xl cursor-pointer transition-all active:scale-[0.98] text-xs"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  id="btn-save-question-edit"
+                  type="submit"
+                  disabled={savingQuestion}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black py-3.5 rounded-2xl cursor-pointer flex items-center justify-center gap-2 shadow-md shadow-indigo-100 active:scale-[0.98] transition-all text-xs"
+                >
+                  {savingQuestion ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Lưu thay đổi câu hỏi
                 </button>
               </div>
             </form>

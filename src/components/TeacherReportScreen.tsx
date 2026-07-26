@@ -7,6 +7,7 @@ import {
 import {
   fsGetAssignmentsDetailed,
   fsGetAssignmentReport,
+  fsGetStudentSubmissionResult,
   fsDeleteAssignment,
   fsGetClasses,
   getAppData
@@ -156,27 +157,27 @@ export default function TeacherReportScreen({ teacherId }: TeacherReportScreenPr
         const res = await fetch(`/api/student/result/${submissionId}`);
         const contentType = res.headers.get("content-type");
         if (res.ok && contentType && contentType.includes("application/json")) {
-          data = await res.json();
-          loaded = true;
+          const apiData = await res.json();
+          if (apiData && apiData.submission && Array.isArray(apiData.questions) && apiData.questions.length > 0) {
+            data = apiData;
+            loaded = true;
+          }
         }
       } catch (err) {
         console.warn("API student submission detail fetch failed, using Firestore:", err);
       }
 
       if (!loaded) {
-        const appData = await getAppData();
-        const sub = appData.submissions.find((s) => s.id === submissionId);
-        if (sub) {
-          const exam = appData.exams.find((e) => e.id === sub.examId);
-          data = {
-            submission: sub,
-            exam: exam || null
-          };
-        }
+        data = await fsGetStudentSubmissionResult(submissionId);
+      }
+
+      if (!data || !data.submission) {
+        throw new Error("Không tìm thấy dữ liệu bài làm của học sinh.");
       }
 
       setStudentSubmissionDetail(data);
     } catch (err: any) {
+      console.error("Error loading student submission detail:", err);
       setError(err.message || "Lỗi khi tải chi tiết bài làm.");
     } finally {
       setSubLoading(false);
@@ -963,23 +964,33 @@ export default function TeacherReportScreen({ teacherId }: TeacherReportScreenPr
                 <div>
                   <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Thời gian nộp</span>
                   <p className="text-sm font-bold text-slate-800 mt-1">
-                    {new Date(studentSubmissionDetail.submission.submittedAt).toLocaleString("vi-VN")}
+                    {studentSubmissionDetail.submission.submittedAt 
+                      ? (() => {
+                          try {
+                            const d = new Date(studentSubmissionDetail.submission.submittedAt);
+                            return isNaN(d.getTime()) ? "Vừa xong" : d.toLocaleString("vi-VN");
+                          } catch (e) {
+                            return "Vừa xong";
+                          }
+                        })()
+                      : "Vừa xong"}
                   </p>
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Tỉ lệ trả lời</span>
                   <p className="text-sm font-bold text-slate-800 mt-1">
-                    Đúng {studentSubmissionDetail.submission.correctCount} / Sai {studentSubmissionDetail.submission.wrongCount} câu
+                    Đúng {studentSubmissionDetail.submission.correctCount ?? 0} / Sai {studentSubmissionDetail.submission.wrongCount ?? 0} câu
                   </p>
                 </div>
               </div>
 
               <div className="space-y-6">
-                {studentSubmissionDetail.questions.map((q: any, idx: number) => {
+                {(studentSubmissionDetail.questions || []).map((q: any, idx: number) => {
                   const letterMapping = ["A", "B", "C", "D"];
+                  const optionsList = Array.isArray(q.options) ? q.options : [];
                   return (
                     <div
-                      key={q.id}
+                      key={q.id || idx}
                       className={`border p-5 rounded-[24px] space-y-4 ${
                         q.isCorrect 
                           ? "bg-emerald-50/20 border-emerald-100" 
@@ -1002,8 +1013,9 @@ export default function TeacherReportScreen({ teacherId }: TeacherReportScreenPr
                       <p className="font-black text-slate-900 leading-relaxed text-sm">{q.question}</p>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {q.options.map((opt: string, oIdx: number) => {
-                          const letter = letterMapping[oIdx];
+                        {optionsList.map((optItem: any, oIdx: number) => {
+                          const letter = letterMapping[oIdx] || String.fromCharCode(65 + oIdx);
+                          const optText = typeof optItem === "object" && optItem !== null ? (optItem.text || "") : String(optItem || "");
                           const isStudentSelected = q.studentAnswer === letter;
                           const isCorrectAnswer = q.correctAnswer === letter;
 
@@ -1023,9 +1035,9 @@ export default function TeacherReportScreen({ teacherId }: TeacherReportScreenPr
                               <span className={`w-6 h-6 rounded-xl text-xs font-black flex items-center justify-center shrink-0 ${badgeStyle}`}>
                                 {letter}
                               </span>
-                              <span>{opt}</span>
+                              <span>{optText}</span>
                               {isStudentSelected && (
-                                <span className="ml-auto text-[9px] font-black uppercase tracking-wider bg-slate-900/10 px-2 py-0.5 rounded-lg">
+                                <span className="ml-auto text-[9px] font-black uppercase tracking-wider bg-slate-900/10 px-2 py-0.5 rounded-lg shrink-0">
                                   {q.isCorrect ? "✅ Em đã chọn" : "❌ Em đã chọn"}
                                 </span>
                               )}

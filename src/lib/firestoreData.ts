@@ -803,6 +803,88 @@ export async function fsGetAssignmentReport(assignmentId: string): Promise<any> 
   };
 }
 
+export async function fsGetStudentSubmissionResult(submissionId: string): Promise<any> {
+  const data = await getAppData();
+  const submissions = data.submissions || [];
+  let sub = submissions.find((s) => s.id === submissionId || (s as any).submissionId === submissionId);
+
+  if (!sub) {
+    sub = submissions.find((s) => s.assignmentId === submissionId || s.studentId === submissionId);
+  }
+
+  if (!sub) {
+    throw new Error("Không tìm thấy kết quả làm bài của học sinh.");
+  }
+
+  const exams = data.exams || [];
+  let exam = exams.find((e) => e.id === sub.examId);
+  if (!exam && sub.assignmentId) {
+    const asg = (data.assignments || []).find((a) => a.id === sub.assignmentId);
+    if (asg) {
+      exam = exams.find((e) => e.id === asg.examId);
+    }
+  }
+
+  let studentName = (sub as any).studentName || "Học sinh";
+  if (data.classes && Array.isArray(data.classes)) {
+    for (const cls of data.classes) {
+      if (cls.students && Array.isArray(cls.students)) {
+        const std = cls.students.find(
+          (s) =>
+            s.id === sub.studentId ||
+            (s.studentCode && sub.studentId && s.studentCode.toUpperCase() === sub.studentId.toUpperCase()) ||
+            (s.studentCode && (sub as any).studentCode && s.studentCode.toUpperCase() === (sub as any).studentCode.toUpperCase()) ||
+            (s.id && (sub as any).studentCode && s.id === (sub as any).studentCode)
+        );
+        if (std) {
+          studentName = std.name;
+          break;
+        }
+      }
+    }
+  }
+
+  const questionsList = exam?.questions || [];
+  const reviewQuestions = questionsList.map((q) => {
+    const studentAnswer = (sub.answers && sub.answers[q.id]) || "";
+    const isCorrect = studentAnswer.toString().toUpperCase() === (q.correctAnswer || "").toString().toUpperCase();
+    return {
+      id: q.id,
+      question: q.question,
+      options: q.options || [],
+      correctAnswer: q.correctAnswer,
+      studentAnswer,
+      isCorrect,
+      explanation: q.explanation || "",
+      keyPoint: q.keyPoint || "",
+      difficulty: q.difficulty || "Nhận biết"
+    };
+  });
+
+  const correctCount = sub.correctCount ?? reviewQuestions.filter((q) => q.isCorrect).length;
+  const wrongCount = sub.wrongCount ?? (reviewQuestions.length - correctCount);
+  const scoreVal = typeof sub.score === "number" ? sub.score : (reviewQuestions.length > 0 ? Math.round((correctCount / reviewQuestions.length) * 10) / 10 : 0);
+
+  return {
+    submission: {
+      id: sub.id,
+      score: scoreVal,
+      correctCount,
+      wrongCount,
+      submittedAt: sub.submittedAt || new Date().toISOString(),
+      duration: sub.duration || 0,
+      studentName
+    },
+    exam: {
+      id: exam ? exam.id : "",
+      title: exam ? exam.title : "Đề kiểm tra",
+      grade: exam ? exam.grade : "",
+      topic: exam ? exam.topic : ""
+    },
+    questions: reviewQuestions
+  };
+}
+
 // ==========================================
 // GAMES CRUD
 // ==========================================
