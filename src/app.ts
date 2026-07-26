@@ -117,12 +117,25 @@ interface Game {
   createdAt: string;
 }
 
+interface GameRecord {
+  id: string;
+  gameId: string;
+  gameName: string;
+  score: number;
+  rewardPoints: number;
+  completedAt: string;
+  studentId: string;
+  studentCode?: string;
+  studentName?: string;
+}
+
 interface DbSchema {
   classes: Class[];
   exams: Exam[];
   assignments: Assignment[];
   submissions: Submission[];
   games?: Game[];
+  gameHistory?: GameRecord[];
 }
 
 // Ensure the database file exists with some initial seed data
@@ -299,6 +312,7 @@ async function loadFromFirebase() {
       if (data.assignments) db.assignments = data.assignments;
       if (data.submissions) db.submissions = data.submissions;
       if (data.games) db.games = data.games;
+      if (data.gameHistory) db.gameHistory = data.gameHistory;
       console.log("Successfully synced database with Firebase khokiemtraai");
       try {
         fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf-8");
@@ -2107,6 +2121,80 @@ app.get("/api/reports/assignment/:assignmentId", (req, res) => {
     },
     studentResults: results,
     questionAnalysis
+  });
+});
+
+// GAME REWARD SYSTEM ENDPOINTS
+app.post("/api/student/game-record", (req, res) => {
+  const { studentId, studentCode, studentName, gameId, gameName, score, rewardPoints } = req.body;
+
+  if (!studentId || !gameId) {
+    return res.status(400).json({ error: "Thiếu thông tin học sinh hoặc trò chơi." });
+  }
+
+  if (!Array.isArray(db.gameHistory)) {
+    db.gameHistory = [];
+  }
+
+  const calculatedReward = typeof rewardPoints === "number" && rewardPoints > 0 
+    ? Math.round(rewardPoints) 
+    : Math.max(1, Math.round(Number(score || 10)));
+
+  const newRecord: GameRecord = {
+    id: `grec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    studentId: String(studentId),
+    studentCode: studentCode ? String(studentCode) : "",
+    studentName: studentName ? String(studentName) : "Học sinh",
+    gameId: String(gameId),
+    gameName: gameName ? String(gameName) : "Trò chơi học tập",
+    score: Number(score) || 0,
+    rewardPoints: calculatedReward,
+    completedAt: new Date().toISOString()
+  };
+
+  db.gameHistory.unshift(newRecord);
+
+  // Compute total points
+  const studentRecords = db.gameHistory.filter(
+    (r) =>
+      r.studentId === studentId ||
+      (studentCode && r.studentCode && r.studentCode.toUpperCase() === String(studentCode).toUpperCase())
+  );
+
+  const totalGamePoints = studentRecords.reduce((sum, r) => sum + (r.rewardPoints || 0), 0);
+
+  saveDb();
+
+  res.status(201).json({
+    success: true,
+    totalGamePoints,
+    newRecord,
+    gamesCompletedCount: studentRecords.length
+  });
+});
+
+app.get("/api/student/:studentId/game-history", (req, res) => {
+  const studentId = req.params.studentId;
+  const studentCode = req.query.studentCode as string;
+
+  if (!Array.isArray(db.gameHistory)) {
+    db.gameHistory = [];
+  }
+
+  const studentRecords = db.gameHistory.filter(
+    (r) =>
+      r.studentId === studentId ||
+      (studentCode && r.studentCode && r.studentCode.toUpperCase() === studentCode.toUpperCase()) ||
+      (r.studentId && studentCode && r.studentId.toUpperCase() === studentCode.toUpperCase())
+  );
+
+  const totalGamePoints = studentRecords.reduce((sum, r) => sum + (r.rewardPoints || 0), 0);
+
+  res.json({
+    studentId,
+    totalGamePoints,
+    gamesCompletedCount: studentRecords.length,
+    gameHistory: studentRecords
   });
 });
 

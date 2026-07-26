@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { User } from "../types";
+import { fsRecordGameCompletion } from "../lib/firestoreData";
 import { 
   Trophy, Star, RefreshCw, CheckCircle2, XCircle, Heart, 
   ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Zap, Sparkles, Award
@@ -7,15 +9,17 @@ import {
 interface BuiltInGamePlayerProps {
   gameKey: string; // "typing" | "quiz" | "scratch-maze"
   onClose?: () => void;
+  user?: User | null;
+  onRewardEarned?: (rewardPoints: number, gameTitle: string) => void;
 }
 
-export default function BuiltInGamePlayer({ gameKey, onClose }: BuiltInGamePlayerProps) {
+export default function BuiltInGamePlayer({ gameKey, onClose, user, onRewardEarned }: BuiltInGamePlayerProps) {
   if (gameKey === "typing") {
-    return <TypingGame />;
+    return <TypingGame user={user} onRewardEarned={onRewardEarned} />;
   } else if (gameKey === "quiz") {
-    return <QuizGame />;
+    return <QuizGame user={user} onRewardEarned={onRewardEarned} />;
   } else if (gameKey === "scratch-maze") {
-    return <ScratchMazeGame />;
+    return <ScratchMazeGame user={user} onRewardEarned={onRewardEarned} />;
   }
 
   return (
@@ -26,10 +30,82 @@ export default function BuiltInGamePlayer({ gameKey, onClose }: BuiltInGamePlaye
   );
 }
 
+// Helper to persist reward points to database & update state
+async function saveGameReward(
+  user: User | null | undefined,
+  gameId: string,
+  gameName: string,
+  score: number,
+  rewardPoints: number,
+  setSavedInfo: (info: { pointsEarned: number; totalPoints: number }) => void,
+  onRewardEarned?: (rewardPoints: number, gameTitle: string) => void
+) {
+  if (!user || user.role !== "student") return;
+
+  const studentId = user.id || user.studentCode || "student-default";
+  const studentCode = user.studentCode || "";
+  const studentName = user.name || "Học sinh";
+
+  try {
+    // 1. Try Express API
+    const res = await fetch("/api/student/game-record", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        studentId,
+        studentCode,
+        studentName,
+        gameId,
+        gameName,
+        score,
+        rewardPoints
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      setSavedInfo({
+        pointsEarned: data.newRecord?.rewardPoints || rewardPoints,
+        totalPoints: data.totalGamePoints || 0
+      });
+      if (onRewardEarned) onRewardEarned(rewardPoints, gameName);
+      return;
+    }
+  } catch (err) {
+    console.warn("Express API saveGameRecord fallback to Firestore:", err);
+  }
+
+  // 2. Firestore fallback
+  try {
+    const result = await fsRecordGameCompletion({
+      studentId,
+      studentCode,
+      studentName,
+      gameId,
+      gameName,
+      score,
+      rewardPoints
+    });
+    setSavedInfo({
+      pointsEarned: result.newRecord.rewardPoints,
+      totalPoints: result.totalGamePoints
+    });
+    if (onRewardEarned) onRewardEarned(rewardPoints, gameName);
+  } catch (fsErr) {
+    console.error("Firestore saveGameRecord error:", fsErr);
+  }
+}
+
 // ==========================================
 // GAME 1: VUA GÕ BÀN PHÍM (TYPING MASTER)
 // ==========================================
-function TypingGame() {
+function TypingGame({
+  user,
+  onRewardEarned
+}: {
+  user?: User | null;
+  onRewardEarned?: (rewardPoints: number, gameTitle: string) => void;
+}) {
   const WORD_LIST = [
     "f d j k a s l ; g h",
     "fjfj dkd3 slsl a;a;",
@@ -38,7 +114,7 @@ function TypingGame() {
     "hoc tap thong minh",
     "tien bo moi ngay",
     "scratch lap trinh",
-    "ai smart test"
+    "the gioi hoc tap"
   ];
 
   const [wordIndex, setWordIndex] = useState(0);
@@ -48,6 +124,7 @@ function TypingGame() {
   const [timeLeft, setTimeLeft] = useState(60);
   const [gameActive, setGameActive] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [savedInfo, setSavedInfo] = useState<{ pointsEarned: number; totalPoints: number } | null>(null);
 
   useEffect(() => {
     let timer: any;
@@ -60,6 +137,22 @@ function TypingGame() {
     return () => clearInterval(timer);
   }, [gameActive, timeLeft]);
 
+  // Handle Game Over & Save Points
+  useEffect(() => {
+    if (gameOver && score > 0) {
+      const calculatedReward = Math.max(10, Math.min(100, Math.floor(score / 3)));
+      saveGameReward(
+        user,
+        "built-in-typing",
+        "Vua Gõ Bàn Phím",
+        score,
+        calculatedReward,
+        setSavedInfo,
+        onRewardEarned
+      );
+    }
+  }, [gameOver]);
+
   const handleStart = () => {
     setScore(0);
     setStreak(0);
@@ -68,6 +161,7 @@ function TypingGame() {
     setTimeLeft(60);
     setGameActive(true);
     setGameOver(false);
+    setSavedInfo(null);
   };
 
   const targetWord = WORD_LIST[wordIndex % WORD_LIST.length];
@@ -130,12 +224,27 @@ function TypingGame() {
         </div>
       ) : gameOver ? (
         <div className="text-center my-auto py-8 space-y-4 bg-slate-950/60 p-8 rounded-3xl border border-amber-500/30">
-          <Award className="w-16 h-16 text-amber-400 mx-auto" />
+          <Award className="w-16 h-16 text-amber-400 mx-auto animate-bounce" />
           <h3 className="text-2xl font-black text-amber-300">HOÀN THÀNH THỬ THÁCH!</h3>
           <div className="inline-block bg-slate-800 border border-slate-700 p-4 px-8 rounded-2xl">
-            <span className="text-xs text-slate-400 block font-bold">TỔNG ĐIỂM ĐẠT ĐƯỢC</span>
+            <span className="text-xs text-slate-400 block font-bold">TỔNG ĐIỂM TRÒ CHƠI</span>
             <span className="text-3xl font-black text-amber-400">{score} Điểm</span>
           </div>
+
+          {savedInfo ? (
+            <div className="bg-emerald-950/80 border border-emerald-500/50 p-4 rounded-2xl max-w-md mx-auto space-y-1">
+              <span className="text-sm font-black text-emerald-300 flex items-center justify-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                ĐÃ CỘNG +{savedInfo.pointsEarned} ĐIỂM THƯỞNG VÀO TÀI KHOẢN!
+              </span>
+              <p className="text-xs text-emerald-200">
+                Tổng điểm thưởng trò chơi hiện có: <strong className="text-amber-300">⭐ {savedInfo.totalPoints} điểm</strong>
+              </p>
+            </div>
+          ) : user && score > 0 ? (
+            <p className="text-xs text-amber-300 animate-pulse">Đang đồng bộ điểm thưởng vào hệ thống...</p>
+          ) : null}
+
           <div>
             <button
               onClick={handleStart}
@@ -197,7 +306,13 @@ function TypingGame() {
 // ==========================================
 // GAME 2: ĐỐ VUI TIN HỌC (QUIZ CHALLENGE)
 // ==========================================
-function QuizGame() {
+function QuizGame({
+  user,
+  onRewardEarned
+}: {
+  user?: User | null;
+  onRewardEarned?: (rewardPoints: number, gameTitle: string) => void;
+}) {
   const QUESTIONS = [
     {
       q: "Bộ phận nào của máy tính giúp điều khiển con trỏ trên màn hình?",
@@ -231,24 +346,42 @@ function QuizGame() {
   const [score, setScore] = useState(0);
   const [hearts, setHearts] = useState(3);
   const [gameOver, setGameOver] = useState(false);
+  const [savedInfo, setSavedInfo] = useState<{ pointsEarned: number; totalPoints: number } | null>(null);
 
   const currentQ = QUESTIONS[qIndex];
+
+  useEffect(() => {
+    if (gameOver && score > 0) {
+      const calculatedReward = Math.max(15, Math.min(100, Math.floor(score / 4)));
+      saveGameReward(
+        user,
+        "built-in-quiz",
+        "Đố Vui Tin Học",
+        score,
+        calculatedReward,
+        setSavedInfo,
+        onRewardEarned
+      );
+    }
+  }, [gameOver]);
 
   const handleSelect = (idx: number) => {
     if (selectedOpt !== null) return;
     setSelectedOpt(idx);
 
     setTimeout(() => {
+      let updatedScore = score;
+      let updatedHearts = hearts;
+
       if (idx === currentQ.correct) {
-        setScore((s) => s + 100);
+        updatedScore = score + 100;
+        setScore(updatedScore);
       } else {
-        setHearts((h) => {
-          if (h <= 1) setGameOver(true);
-          return h - 1;
-        });
+        updatedHearts = hearts - 1;
+        setHearts(updatedHearts);
       }
 
-      if (qIndex + 1 < QUESTIONS.length && hearts > (idx === currentQ.correct ? 0 : 1)) {
+      if (qIndex + 1 < QUESTIONS.length && updatedHearts > 0) {
         setQIndex((i) => i + 1);
         setSelectedOpt(null);
       } else {
@@ -263,6 +396,7 @@ function QuizGame() {
     setScore(0);
     setHearts(3);
     setGameOver(false);
+    setSavedInfo(null);
   };
 
   return (
@@ -299,6 +433,21 @@ function QuizGame() {
           <Trophy className="w-16 h-16 text-amber-400 mx-auto" />
           <h3 className="text-2xl font-black text-white">KẾT THÚC VÒNG ĐỐ VUI!</h3>
           <p className="text-sm font-bold text-amber-300">Em đạt tổng điểm: {score} Điểm</p>
+
+          {savedInfo ? (
+            <div className="bg-emerald-950/80 border border-emerald-500/50 p-4 rounded-2xl max-w-md mx-auto space-y-1">
+              <span className="text-sm font-black text-emerald-300 flex items-center justify-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-emerald-400" />
+                ĐÃ CỘNG +{savedInfo.pointsEarned} ĐIỂM THƯỞNG VÀO TÀI KHOẢN!
+              </span>
+              <p className="text-xs text-emerald-200">
+                Tổng điểm thưởng trò chơi hiện có: <strong className="text-amber-300">⭐ {savedInfo.totalPoints} điểm</strong>
+              </p>
+            </div>
+          ) : user && score > 0 ? (
+            <p className="text-xs text-amber-300 animate-pulse">Đang đồng bộ điểm thưởng vào hệ thống...</p>
+          ) : null}
+
           <button
             onClick={handleRestart}
             className="inline-flex items-center gap-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-sm px-6 py-3.5 rounded-2xl transition-all cursor-pointer shadow-lg"
@@ -351,10 +500,17 @@ function QuizGame() {
 // ==========================================
 // GAME 3: SCRATCH MAZE GAME
 // ==========================================
-function ScratchMazeGame() {
+function ScratchMazeGame({
+  user,
+  onRewardEarned
+}: {
+  user?: User | null;
+  onRewardEarned?: (rewardPoints: number, gameTitle: string) => void;
+}) {
   const [posX, setPosX] = useState(0);
   const [posY, setPosY] = useState(0);
   const [collected, setCollected] = useState<number[]>([]);
+  const [savedInfo, setSavedInfo] = useState<{ pointsEarned: number; totalPoints: number } | null>(null);
   const targetTotal = 3;
 
   const items = [
@@ -362,6 +518,20 @@ function ScratchMazeGame() {
     { id: 2, x: 1, y: 2, label: "🖱️ Chuột" },
     { id: 3, x: 3, y: 3, label: "⌨️ Bàn phím" }
   ];
+
+  useEffect(() => {
+    if (collected.length === targetTotal) {
+      saveGameReward(
+        user,
+        "built-in-scratch-maze",
+        "Thám Tử Mê Cung Scratch",
+        300,
+        30,
+        setSavedInfo,
+        onRewardEarned
+      );
+    }
+  }, [collected.length]);
 
   const move = (dx: number, dy: number) => {
     const newX = Math.max(0, Math.min(3, posX + dx));
@@ -415,30 +585,40 @@ function ScratchMazeGame() {
         <div className="bg-emerald-950/80 border border-emerald-500/50 p-4 rounded-2xl text-center space-y-2">
           <Sparkles className="w-8 h-8 text-emerald-400 mx-auto animate-bounce" />
           <h4 className="text-base font-black text-emerald-300">XUẤT SẮC! MÈO SCRATCH ĐÃ THU THẬP ĐỦ LINH KIỆN!</h4>
+
+          {savedInfo ? (
+            <p className="text-xs text-emerald-200">
+              Đã cộng <strong className="text-amber-300">+{savedInfo.pointsEarned} điểm thưởng</strong> vào tài khoản! (Tổng: {savedInfo.totalPoints}đ)
+            </p>
+          ) : user ? (
+            <p className="text-xs text-amber-300 animate-pulse">Đang ghi nhận +30 điểm thưởng...</p>
+          ) : null}
+
           <button
             onClick={() => {
               setPosX(0);
               setPosY(0);
               setCollected([]);
+              setSavedInfo(null);
             }}
-            className="text-xs font-bold text-slate-950 bg-amber-400 px-4 py-2 rounded-xl"
+            className="text-xs font-bold text-slate-950 bg-amber-400 px-4 py-2 rounded-xl hover:bg-amber-300 transition-all cursor-pointer"
           >
             Chơi lại
           </button>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-2">
-          <button onClick={() => move(0, -1)} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold">
+          <button onClick={() => move(0, -1)} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold cursor-pointer">
             <ArrowUp className="w-5 h-5" />
           </button>
           <div className="flex gap-4">
-            <button onClick={() => move(-1, 0)} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold">
+            <button onClick={() => move(-1, 0)} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold cursor-pointer">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <button onClick={() => move(0, 1)} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold">
+            <button onClick={() => move(0, 1)} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold cursor-pointer">
               <ArrowDown className="w-5 h-5" />
             </button>
-            <button onClick={() => move(1, 0)} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold">
+            <button onClick={() => move(1, 0)} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl font-bold cursor-pointer">
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>

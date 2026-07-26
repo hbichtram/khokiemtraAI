@@ -1,5 +1,5 @@
 {
-  "name": "AI SMART TEST",
+  "name": "HỌC VUI – CHƠI HAY",
   "description": "Học tập thông minh • Tiến bộ mỗi ngày",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

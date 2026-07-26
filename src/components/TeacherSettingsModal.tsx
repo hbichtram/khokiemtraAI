@@ -280,7 +280,7 @@ export default function TeacherSettingsModal({
               </div>
               <div>
                 <h3 className="font-extrabold text-white text-base leading-tight">Cài đặt tài khoản</h3>
-                <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest block">AI SMART TEST</span>
+                <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest block">HỌC VUI – CHƠI HAY</span>
               </div>
             </div>
 
@@ -381,7 +381,7 @@ export default function TeacherSettingsModal({
                         👤 Thông tin giáo viên
                       </h2>
                       <p className="text-xs text-slate-500 font-medium mt-0.5">
-                        Quản lý hồ sơ công tác và thông tin hiển thị trên AI SMART TEST
+                        Quản lý hồ sơ công tác và thông tin hiển thị trên HỌC VUI – CHƠI HAY
                       </p>
                     </div>
                     {!isEditing && (
@@ -748,7 +748,7 @@ export default function TeacherSettingsModal({
                       ⚙️ Cài đặt ứng dụng
                     </h2>
                     <p className="text-xs text-slate-500 font-medium mt-0.5">
-                      Tùy chỉnh thông báo, hiển thị và trải nghiệm AI SMART TEST
+                      Tùy chỉnh thông báo, hiển thị và trải nghiệm HỌC VUI – CHƠI HAY
                     </p>
                   </div>
 

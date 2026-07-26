@@ -7,7 +7,7 @@ import Footer from "./Footer";
 import { 
   Award, Play, Eye, LogOut, BookOpen, Clock, Calendar, 
   HelpCircle, RefreshCw, AlertCircle, Smile, GraduationCap,
-  Trophy, Star, Gamepad2 
+  Trophy, Star, Gamepad2, CheckCircle2, XCircle, AlertTriangle, Sparkles
 } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { db as firestoreDb } from "../firebase";
@@ -33,6 +33,19 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
   const [studentTab, setStudentTab] = useState<"tests" | "games">("tests");
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
+
+  // Exam category tab state: "pending" (Chưa làm) | "completed" (Đã hoàn thành) | "overdue" (Quá hạn)
+  const [examCategoryTab, setExamCategoryTab] = useState<"pending" | "completed" | "overdue">("pending");
+
+  const pendingAssignments = allSortedAssignments.filter(
+    (a) => a.computedStatus === "ongoing" || a.computedStatus === "upcoming"
+  );
+  const completedAssignmentsList = allSortedAssignments.filter(
+    (a) => a.computedStatus === "completed"
+  );
+  const overdueAssignments = allSortedAssignments.filter(
+    (a) => a.computedStatus === "expired"
+  );
 
   // Helper navigate function that changes URL and triggers state update
   const navigate = (path: string) => {
@@ -302,200 +315,304 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            {/* LEFT 2 COLUMNS: ASSIGNMENTS LIST WITH PRIORITY SORTING */}
+            {/* LEFT 2 COLUMNS: ASSIGNMENTS LIST WITH 3 TABS */}
             <div className="lg:col-span-2 space-y-6">
               <div className="bg-white border border-slate-100 rounded-[32px] p-6 md:p-8 shadow-sm space-y-6">
-                <div className="border-b border-slate-50 pb-4 flex justify-between items-center flex-wrap gap-2">
+                <div className="border-b border-slate-100 pb-4 flex justify-between items-center flex-wrap gap-2">
                   <h2 className="font-black text-slate-900 text-base md:text-lg flex items-center gap-2">
                     <span className="bg-amber-100 p-1.5 rounded-xl text-amber-600 block shadow-xs">
-                      <Play className="w-5 h-5 fill-amber-500 shrink-0" />
+                      <BookOpen className="w-5 h-5 text-amber-600 shrink-0" />
                     </span>
                     Danh sách bài kiểm tra
                   </h2>
-                  <span className="bg-amber-100 text-amber-900 text-[11px] font-black px-3.5 py-1.5 rounded-xl border border-amber-200">
-                    {allSortedAssignments.filter((a) => a.computedStatus === "ongoing").length > 0
-                      ? `🟢 ${allSortedAssignments.filter((a) => a.computedStatus === "ongoing").length} BÀI ĐANG MỞ`
-                      : `${allSortedAssignments.length} BÀI KIỂM TRA`}
+                  <span className="bg-amber-50 text-amber-900 text-[11px] font-black px-3.5 py-1.5 rounded-xl border border-amber-200">
+                    Tổng số: {allSortedAssignments.length} bài
                   </span>
                 </div>
 
-                {allSortedAssignments.length === 0 ? (
-                  <div className="text-center py-12 bg-slate-50/50 rounded-[24px] border border-dashed border-slate-200">
-                    <Smile className="w-16 h-16 text-amber-400 mx-auto mb-3 bg-white p-3 rounded-2xl" />
-                    <h3 className="font-black text-slate-700 text-sm">Chưa có bài kiểm tra nào</h3>
-                    <p className="text-slate-400 text-xs font-bold mt-1 max-w-xs mx-auto leading-relaxed">
-                      Khi thầy cô giao thêm bài kiểm tra Tin học mới, bài làm sẽ tự động hiển thị ở đây em nhé.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4 animate-fadeIn">
-                    {allSortedAssignments.map((asg) => {
-                      const isOngoing = asg.computedStatus === "ongoing";
-                      const isUpcoming = asg.computedStatus === "upcoming";
-                      const isCompleted = asg.computedStatus === "completed";
-                      const isExpired = asg.computedStatus === "expired";
-                      const isInProgress = asg.submissionStatus === "in_progress";
+                {/* 3 TABS SELECTOR */}
+                <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/80">
+                  <button
+                    id="tab-pending-exams"
+                    onClick={() => setExamCategoryTab("pending")}
+                    className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer ${
+                      examCategoryTab === "pending"
+                        ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-200/60 ring-1 ring-amber-400 scale-[1.01]"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                    }`}
+                  >
+                    <Clock className="w-4 h-4 shrink-0" />
+                    <span className="truncate">CHƯA LÀM</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                      examCategoryTab === "pending"
+                        ? "bg-slate-950 text-amber-300"
+                        : "bg-slate-200 text-slate-700"
+                    }`}>
+                      {pendingAssignments.length}
+                    </span>
+                  </button>
 
-                      const remInfo = formatRemainingTime(asg.startTime, asg.endTime, asg.computedStatus);
+                  <button
+                    id="tab-completed-exams"
+                    onClick={() => setExamCategoryTab("completed")}
+                    className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer ${
+                      examCategoryTab === "completed"
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-200/60 ring-1 ring-emerald-500 scale-[1.01]"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span className="truncate">ĐÃ HOÀN THÀNH</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                      examCategoryTab === "completed"
+                        ? "bg-white text-emerald-800"
+                        : "bg-slate-200 text-slate-700"
+                    }`}>
+                      {completedAssignmentsList.length}
+                    </span>
+                  </button>
 
-                      return (
-                        <div
-                          key={asg.assignmentId}
-                          className={`border rounded-3xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 transition-all ${
-                            isOngoing
-                              ? "border-amber-300 bg-gradient-to-r from-amber-500/10 via-amber-50/20 to-white shadow-md shadow-amber-100/40 hover:shadow-lg hover:shadow-amber-100/60"
-                              : isUpcoming
-                              ? "border-blue-200/80 bg-blue-50/20 opacity-90"
-                              : isCompleted
-                              ? "border-emerald-200/80 bg-emerald-50/30"
-                              : "border-slate-200/60 bg-slate-50/80 opacity-65"
-                          }`}
-                        >
-                          <div className="space-y-2.5">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-0.5 rounded-lg uppercase">
-                                {asg.grade}
-                              </span>
+                  <button
+                    id="tab-overdue-exams"
+                    onClick={() => setExamCategoryTab("overdue")}
+                    className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer ${
+                      examCategoryTab === "overdue"
+                        ? "bg-rose-600 text-white shadow-md shadow-rose-200/60 ring-1 ring-rose-500 scale-[1.01]"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                    }`}
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span className="truncate">QUÁ HẠN</span>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                      examCategoryTab === "overdue"
+                        ? "bg-white text-rose-800"
+                        : "bg-slate-200 text-slate-700"
+                    }`}>
+                      {overdueAssignments.length}
+                    </span>
+                  </button>
+                </div>
 
-                              {/* Status Badge */}
-                              {isOngoing && (
-                                <span className="bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                  {isInProgress ? "🟢 Đang làm bài" : "🟢 Đang làm bài"}
+                {/* TAB CONTENT DISPLAY */}
+                {(() => {
+                  const currentList = 
+                    examCategoryTab === "pending"
+                      ? pendingAssignments
+                      : examCategoryTab === "completed"
+                      ? completedAssignmentsList
+                      : overdueAssignments;
+
+                  if (currentList.length === 0) {
+                    return (
+                      <div className="text-center py-12 bg-slate-50/60 rounded-[24px] border border-dashed border-slate-200 px-4">
+                        <Smile className="w-14 h-14 text-amber-400 mx-auto mb-3 bg-white p-3 rounded-2xl shadow-xs" />
+                        <h3 className="font-black text-slate-700 text-sm">
+                          {examCategoryTab === "pending" && "Không có bài kiểm tra nào chưa làm"}
+                          {examCategoryTab === "completed" && "Chưa có bài kiểm tra nào đã hoàn thành"}
+                          {examCategoryTab === "overdue" && "Tuyệt vời! Không có bài kiểm tra nào quá hạn"}
+                        </h3>
+                        <p className="text-slate-400 text-xs font-bold mt-1 max-w-xs mx-auto leading-relaxed">
+                          {examCategoryTab === "pending" && "Khi thầy cô giao thêm bài kiểm tra mới, bài làm sẽ xuất hiện ở đây em nhé."}
+                          {examCategoryTab === "completed" && "Hãy hoàn thành các bài kiểm tra trong tab 'CHƯA LÀM' để xem kết quả tại đây."}
+                          {examCategoryTab === "overdue" && "Em hãy tiếp tục duy trì nộp bài đúng hạn để đạt kết quả cao nhé!"}
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-4 animate-fadeIn">
+                      {currentList.map((asg) => {
+                        const isOngoing = asg.computedStatus === "ongoing";
+                        const isUpcoming = asg.computedStatus === "upcoming";
+                        const isCompleted = asg.computedStatus === "completed";
+                        const isExpired = asg.computedStatus === "expired";
+                        const isInProgress = asg.submissionStatus === "in_progress";
+
+                        const remInfo = formatRemainingTime(asg.startTime, asg.endTime, asg.computedStatus);
+
+                        return (
+                          <div
+                            key={asg.assignmentId}
+                            className={`border rounded-3xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 transition-all ${
+                              isOngoing
+                                ? "border-amber-300 bg-gradient-to-r from-amber-500/10 via-amber-50/20 to-white shadow-md shadow-amber-100/40 hover:shadow-lg"
+                                : isUpcoming
+                                ? "border-blue-200/80 bg-blue-50/20"
+                                : isCompleted
+                                ? "border-emerald-200/80 bg-emerald-50/30"
+                                : "border-rose-200/80 bg-rose-50/20"
+                            }`}
+                          >
+                            <div className="space-y-2.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="bg-indigo-50 border border-indigo-100 text-indigo-700 text-[10px] font-bold px-2.5 py-0.5 rounded-lg uppercase">
+                                  {asg.grade}
                                 </span>
-                              )}
-                              {isUpcoming && (
-                                <span className="bg-blue-100 border border-blue-300 text-blue-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
-                                  🔵 Sắp diễn ra
+
+                                {/* Status Badge */}
+                                {examCategoryTab === "pending" && (
+                                  <>
+                                    {isOngoing && (
+                                      <span className="bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
+                                        <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                                        {isInProgress ? "🟢 Đang làm bài" : "🟡 Chưa làm"}
+                                      </span>
+                                    )}
+                                    {isUpcoming && (
+                                      <span className="bg-blue-100 border border-blue-300 text-blue-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
+                                        🔵 Sắp diễn ra
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+
+                                {examCategoryTab === "completed" && (
+                                  <span className="bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    Trạng thái: Đã hoàn thành
+                                  </span>
+                                )}
+
+                                {examCategoryTab === "overdue" && (
+                                  <span className="bg-rose-100 border border-rose-300 text-rose-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
+                                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                    Trạng thái: Quá hạn
+                                  </span>
+                                )}
+
+                                {/* Secondary Badge: Time remaining or Score */}
+                                {isOngoing && remInfo.text && (
+                                  <span
+                                    className={`text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 ${
+                                      remInfo.isUrgent
+                                        ? "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse"
+                                        : "bg-amber-100 text-amber-900 border border-amber-300"
+                                    }`}
+                                  >
+                                    {remInfo.text}
+                                  </span>
+                                )}
+                                {isUpcoming && remInfo.text && (
+                                  <span className="bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-bold px-3 py-1 rounded-xl">
+                                    {remInfo.text}
+                                  </span>
+                                )}
+                                {isCompleted && (
+                                  <span className="bg-emerald-200/90 text-emerald-950 text-[11px] font-black px-3 py-1 rounded-xl shadow-2xs">
+                                    Điểm: {asg.score ?? 0}/10
+                                  </span>
+                                )}
+                              </div>
+
+                              <h3 className="font-black text-slate-900 text-base md:text-lg leading-snug">
+                                {asg.title}
+                              </h3>
+
+                              <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-500">
+                                <span className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">
+                                  <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                                  Môn học / Chủ đề: {asg.topic}
                                 </span>
-                              )}
-                              {isCompleted && (
-                                <span className="bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
-                                  ✅ Đã hoàn thành
+                                <span className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">
+                                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                                  Thời gian: {asg.duration} phút ({asg.questionsCount || 10} câu)
                                 </span>
-                              )}
-                              {isExpired && (
-                                <span className="bg-rose-100 border border-rose-300 text-rose-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
-                                  🔴 Đã quá hạn
-                                </span>
+                              </div>
+
+                              {/* Date/Time Details */}
+                              {examCategoryTab === "pending" && (
+                                <>
+                                  {isUpcoming && (
+                                    <p className="text-xs font-black text-blue-600 flex items-center gap-1.5 pt-0.5">
+                                      <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                      Bắt đầu: {new Date(asg.startTime).toLocaleString("vi-VN")}
+                                    </p>
+                                  )}
+                                  {isOngoing && (
+                                    <p className="text-xs font-black text-amber-700 flex items-center gap-1.5 pt-0.5">
+                                      <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                      Hạn nộp: {new Date(asg.endTime).toLocaleString("vi-VN")}
+                                    </p>
+                                  )}
+                                </>
                               )}
 
-                              {/* Time / Score Badge */}
-                              {isOngoing && remInfo.text && (
-                                <span
-                                  className={`text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 ${
-                                    remInfo.isUrgent
-                                      ? "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse"
-                                      : "bg-amber-100 text-amber-900 border border-amber-300"
-                                  }`}
-                                >
-                                  {remInfo.text}
-                                </span>
+                              {examCategoryTab === "completed" && (
+                                <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 pt-0.5">
+                                  <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                  Ngày hoàn thành: {asg.submittedAt ? safeFormatDate(asg.submittedAt) : "Đã nộp"}
+                                </p>
                               )}
-                              {isUpcoming && remInfo.text && (
-                                <span className="bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-bold px-3 py-1 rounded-xl">
-                                  {remInfo.text}
-                                </span>
-                              )}
-                              {isCompleted && (
-                                <span className="bg-emerald-200/90 text-emerald-950 text-[11px] font-black px-3 py-1 rounded-xl shadow-2xs">
-                                  Điểm: {asg.score ?? 0}/10
-                                </span>
-                              )}
-                              {isExpired && (
-                                <span className="bg-slate-200/80 text-slate-600 text-[11px] font-bold px-3 py-1 rounded-xl">
-                                  Đã hết hạn
-                                </span>
+
+                              {examCategoryTab === "overdue" && (
+                                <div className="space-y-1 pt-0.5">
+                                  <p className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                    Hạn nộp: {new Date(asg.endTime).toLocaleString("vi-VN")}
+                                  </p>
+                                  <p className="text-[11px] font-bold text-rose-500 flex items-center gap-1">
+                                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                    Bài làm đã hết hạn. Em không thể làm bài trừ khi thầy cô gia hạn thêm.
+                                  </p>
+                                </div>
                               )}
                             </div>
 
-                            <h3 className="font-black text-slate-900 text-base md:text-lg leading-snug">
-                              {asg.title}
-                            </h3>
+                            {/* Action Buttons */}
+                            {examCategoryTab === "pending" && (
+                              <>
+                                {isOngoing ? (
+                                  <button
+                                    id={`btn-start-exam-${asg.assignmentId}`}
+                                    onClick={() => handleStartExam(asg)}
+                                    className={`font-black text-xs md:text-sm px-6 py-4 rounded-2xl cursor-pointer shrink-0 flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md ${
+                                      isInProgress
+                                        ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200"
+                                        : "bg-amber-400 hover:bg-amber-500 text-slate-900 shadow-amber-100"
+                                    }`}
+                                  >
+                                    {isInProgress ? "Tiếp tục làm bài" : "Bắt đầu làm bài"}
+                                    <Play className="w-4 h-4 fill-current" />
+                                  </button>
+                                ) : (
+                                  <button
+                                    disabled
+                                    className="bg-slate-100 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
+                                  >
+                                    Chưa đến giờ
+                                    <Clock className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </>
+                            )}
 
-                            <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-500">
-                              <span className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">
-                                <BookOpen className="w-3.5 h-3.5 shrink-0" />
-                                Chủ đề: {asg.topic}
-                              </span>
-                              <span className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">
-                                <Clock className="w-3.5 h-3.5 shrink-0" />
-                                Thời gian: {asg.duration} phút ({asg.questionsCount || 10} câu)
-                              </span>
-                            </div>
+                            {examCategoryTab === "completed" && (
+                              <button
+                                id={`btn-review-exam-${asg.submissionId || asg.assignmentId}`}
+                                onClick={() => handleViewReview(asg.submissionId!)}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98] shadow-sm"
+                              >
+                                Xem kết quả
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            )}
 
-                            {/* Detailed time info */}
-                            {isUpcoming && (
-                              <p className="text-xs font-black text-blue-600 flex items-center gap-1.5 pt-0.5">
-                                <Calendar className="w-3.5 h-3.5 shrink-0" />
-                                Thời gian bắt đầu: {new Date(asg.startTime).toLocaleString("vi-VN")}
-                              </p>
-                            )}
-                            {isOngoing && (
-                              <p className="text-xs font-black text-amber-700 flex items-center gap-1.5 pt-0.5">
-                                <Calendar className="w-3.5 h-3.5 shrink-0" />
-                                Hạn cuối: {new Date(asg.endTime).toLocaleString("vi-VN")}
-                              </p>
-                            )}
-                            {isCompleted && (
-                              <p className="text-xs font-bold text-emerald-700 flex items-center gap-1.5 pt-0.5">
-                                <Calendar className="w-3.5 h-3.5 shrink-0" />
-                                Ngày làm bài: {asg.submittedAt ? safeFormatDate(asg.submittedAt) : "Đã nộp"}
-                              </p>
-                            )}
-                            {isExpired && (
-                              <p className="text-xs font-bold text-slate-400 line-through flex items-center gap-1.5 pt-0.5">
-                                <Calendar className="w-3.5 h-3.5 shrink-0" />
-                                Hạn cuối: {new Date(asg.endTime).toLocaleString("vi-VN")}
-                              </p>
+                            {examCategoryTab === "overdue" && (
+                              <button
+                                disabled
+                                className="bg-slate-100 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
+                              >
+                                Đã quá hạn
+                                <AlertCircle className="w-4 h-4" />
+                              </button>
                             )}
                           </div>
-
-                          {/* Action Button */}
-                          {isOngoing ? (
-                            <button
-                              id={`btn-start-exam-${asg.assignmentId}`}
-                              onClick={() => handleStartExam(asg)}
-                              className={`font-black text-xs md:text-sm px-6 py-4 rounded-2xl cursor-pointer shrink-0 flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md animate-fadeIn ${
-                                isInProgress
-                                  ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200"
-                                  : "bg-amber-400 hover:bg-amber-500 text-slate-900 shadow-amber-100"
-                              }`}
-                            >
-                              {isInProgress ? "Tiếp tục làm bài" : "Làm bài ngay"}
-                              <Play className="w-4 h-4 fill-current" />
-                            </button>
-                          ) : isUpcoming ? (
-                            <button
-                              disabled
-                              className="bg-slate-100 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
-                            >
-                              Chưa đến giờ
-                              <Clock className="w-4 h-4" />
-                            </button>
-                          ) : isCompleted ? (
-                            <button
-                              id={`btn-review-exam-${asg.submissionId || asg.assignmentId}`}
-                              onClick={() => handleViewReview(asg.submissionId!)}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98] shadow-sm"
-                            >
-                              Xem kết quả
-                              <Eye className="w-4 h-4" />
-                            </button>
-                          ) : (
-                            <button
-                              disabled
-                              className="bg-slate-100 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
-                            >
-                              Đã quá hạn
-                              <AlertCircle className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

@@ -372,7 +372,7 @@ export default function App() {
     return (
       <div id="app-loading-container" className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
         <RefreshCw className="w-10 h-10 animate-spin text-indigo-600 mb-3" />
-        <h2 className="font-extrabold text-slate-700 text-lg">Đang khởi động AI SMART TEST...</h2>
+        <h2 className="font-extrabold text-slate-700 text-lg">Đang khởi động HỌC VUI – CHƠI HAY...</h2>
         <p className="text-slate-400 text-xs mt-1">Đợi một chút để đồng bộ hệ thống đề thông minh nhé!</p>
       </div>
     );
@@ -400,7 +400,7 @@ export default function App() {
             <Sparkles className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-indigo-950">AI SMART TEST</h1>
+            <h1 className="text-2xl font-black tracking-tight text-indigo-950">HỌC VUI – CHƠI HAY</h1>
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
               Học tập thông minh • Tiến bộ mỗi ngày
             </p>

@@ -1,6 +1,6 @@
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db as firestoreDb, auth } from "../firebase";
-import { Class, Exam, Student, Assignment, Submission, Question, Game } from "../types";
+import { Class, Exam, Student, Assignment, Submission, Question, Game, GameRecord } from "../types";
 
 export interface AppDataSchema {
   classes: Class[];
@@ -8,6 +8,7 @@ export interface AppDataSchema {
   assignments: Assignment[];
   submissions: Submission[];
   games?: Game[];
+  gameHistory?: GameRecord[];
   updatedAt?: string;
 }
 
@@ -963,5 +964,78 @@ export async function fsDeleteGame(id: string): Promise<void> {
   }
   data.games = data.games.filter((g) => g.id !== id);
   await saveAppData(data);
+}
+
+// ==========================================
+// GAME REWARD POINTS & HISTORY
+// ==========================================
+export async function fsRecordGameCompletion(record: {
+  studentId: string;
+  studentCode?: string;
+  studentName?: string;
+  gameId: string;
+  gameName: string;
+  score: number;
+  rewardPoints: number;
+}): Promise<{ totalGamePoints: number; gameHistory: GameRecord[]; newRecord: GameRecord }> {
+  const data = await getAppData();
+  if (!Array.isArray(data.gameHistory)) {
+    data.gameHistory = [];
+  }
+
+  const newRecord: GameRecord = {
+    id: `grec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    studentId: record.studentId,
+    studentCode: record.studentCode || "",
+    studentName: record.studentName || "Học sinh",
+    gameId: record.gameId,
+    gameName: record.gameName,
+    score: record.score,
+    rewardPoints: Math.max(1, Math.round(record.rewardPoints)),
+    completedAt: new Date().toISOString()
+  };
+
+  data.gameHistory.unshift(newRecord);
+
+  // Compute student's total points across all records
+  const studentRecords = data.gameHistory.filter(
+    (r) =>
+      r.studentId === record.studentId ||
+      (record.studentCode && r.studentCode && r.studentCode.toUpperCase() === record.studentCode.toUpperCase())
+  );
+
+  const totalGamePoints = studentRecords.reduce((sum, r) => sum + (r.rewardPoints || 0), 0);
+
+  await saveAppData(data);
+
+  return {
+    totalGamePoints,
+    gameHistory: studentRecords,
+    newRecord
+  };
+}
+
+export async function fsGetStudentGameHistory(studentId: string, studentCode?: string): Promise<{
+  totalGamePoints: number;
+  gameHistory: GameRecord[];
+  gamesCompletedCount: number;
+}> {
+  const data = await getAppData();
+  const rawHistory = data.gameHistory || [];
+
+  const studentRecords = rawHistory.filter(
+    (r) =>
+      r.studentId === studentId ||
+      (studentCode && r.studentCode && r.studentCode.toUpperCase() === studentCode.toUpperCase()) ||
+      (r.studentId && studentCode && r.studentId.toUpperCase() === studentCode.toUpperCase())
+  );
+
+  const totalGamePoints = studentRecords.reduce((sum, r) => sum + (r.rewardPoints || 0), 0);
+
+  return {
+    totalGamePoints,
+    gameHistory: studentRecords,
+    gamesCompletedCount: studentRecords.length
+  };
 }
 

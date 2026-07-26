@@ -91,7 +91,7 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
               <Sparkles className="w-6 h-6" />
             </div>
             <div>
-              <span className="font-black text-lg tracking-tight text-white block">AI SMART TEST</span>
+              <span className="font-black text-lg tracking-tight text-white block">HỌC VUI – CHƠI HAY</span>
               <p className="text-[9px] text-indigo-400 font-extrabold uppercase tracking-widest mt-0.5">Tạo đề • Giao bài</p>
             </div>
           </div>
@@ -217,7 +217,7 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
             </div>
             <div>
               <h2 className="font-extrabold text-slate-800 text-sm">Khu vực quản lý giáo viên</h2>
-              <p className="text-[11px] text-slate-400 font-medium">Hệ thống tạo đề & kiểm tra thông minh AI SMART TEST</p>
+              <p className="text-[11px] text-slate-400 font-medium">Hệ thống tạo đề & kiểm tra thông minh HỌC VUI – CHƠI HAY</p>
             </div>
           </div>
 

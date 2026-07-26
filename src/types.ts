@@ -117,6 +117,18 @@ export interface Game {
   createdAt: string;
 }
 
+export interface GameRecord {
+  id: string;
+  gameId: string;
+  gameName: string;
+  score: number;
+  rewardPoints: number;
+  completedAt: string;
+  studentId: string;
+  studentCode?: string;
+  studentName?: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -126,4 +138,6 @@ export interface User {
   role: "teacher" | "student";
   classId?: string;
   className?: string;
+  totalGamePoints?: number;
+  gameHistory?: GameRecord[];
 }
