@@ -2,15 +2,16 @@ import React, { useState, useEffect } from "react";
 import { User } from "./types";
 import TeacherDashboard from "./components/TeacherDashboard";
 import StudentDashboard from "./components/StudentDashboard";
-import Footer from "./components/Footer";
 import { 
-  Sparkles, GraduationCap, Users, Mail, Key, 
-  ArrowRight, AlertCircle, RefreshCw, Smile 
+  Sparkles, GraduationCap, Users,
+  ArrowRight, AlertCircle, RefreshCw, Smile,
+  Loader2
 } from "lucide-react";
 import { 
-  signInWithEmailAndPassword, 
+  GoogleAuthProvider,
+  signInWithPopup,
   onAuthStateChanged, 
-  signOut 
+  signOut
 } from "firebase/auth";
 import { 
   doc, 
@@ -24,16 +25,37 @@ import {
 import { auth, db as firestoreDb } from "./firebase";
 import { DEFAULT_SEED_DATA } from "./lib/firestoreData";
 
+function GoogleIcon({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="#4285F4"
+        d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.34 24 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.34 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98Z"
+      />
+    </svg>
+  );
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loginRole, setLoginRole] = useState<"teacher" | "student">("teacher");
   
-  // Login Form States
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // Student Login State
   const [studentCode, setStudentCode] = useState("");
   const [classesList, setClassesList] = useState<any[]>([]);
-  
+
   const [appLoading, setAppLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +104,7 @@ export default function App() {
                 fullName: name,
                 name: name,
                 email: userEmail,
+                photoURL: teacherPhotoURL || "",
                 school: "Trường Tiểu học CTST",
                 department: "Tổ Tin học - Công nghệ",
                 subject: "Tin học",
@@ -133,29 +156,28 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  const handleTeacherLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) {
-      setError("Vui lòng nhập địa chỉ Email giáo viên.");
-      return;
-    }
-    if (!password) {
-      setError("Vui lòng nhập mật khẩu.");
-      return;
-    }
-
+  const handleTeacherGoogleLogin = async () => {
     setLoginLoading(true);
     setError(null);
 
     try {
-      // 1. Sign in with Firebase Authentication
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      const fbUser = userCredential.user;
+      const googleProvider = new GoogleAuthProvider();
+      googleProvider.setCustomParameters({
+        prompt: "select_account"
+      });
+
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+
+      if (!fbUser) {
+        throw new Error("Không nhận được thông tin tài khoản Google.");
+      }
 
       let teacherName = fbUser.displayName || "Giáo viên";
       let teacherPhotoURL = fbUser.photoURL || undefined;
+      const teacherEmail = fbUser.email || "";
 
-      // 2. Check/create teacher profile in Firestore without blocking login if Firestore fails
+      // Check teachers/{UID} in Firestore
       try {
         const teacherDocRef = doc(firestoreDb, "teachers", fbUser.uid);
         const docSnap = await getDoc(teacherDocRef);
@@ -171,7 +193,8 @@ export default function App() {
             uid: fbUser.uid,
             fullName: teacherName,
             name: teacherName,
-            email: fbUser.email || email.trim(),
+            email: teacherEmail,
+            photoURL: teacherPhotoURL || "",
             school: "Trường Tiểu học CTST",
             department: "Tổ Tin học - Công nghệ",
             subject: "Tin học",
@@ -181,13 +204,13 @@ export default function App() {
           }, { merge: true });
         }
       } catch (fsErr) {
-        console.warn("Firestore profile fetch/create skipped:", fsErr);
+        console.warn("Firestore teacher profile fetch/create notice:", fsErr);
       }
 
       const teacherUser: User = {
         id: fbUser.uid,
         name: teacherName,
-        email: fbUser.email || email.trim(),
+        email: teacherEmail,
         photoURL: teacherPhotoURL,
         role: "teacher"
       };
@@ -195,30 +218,29 @@ export default function App() {
       setUser(teacherUser);
       localStorage.setItem("ai_smart_test_user", JSON.stringify(teacherUser));
     } catch (err: any) {
-      console.error("Firebase auth error code:", err?.code, err?.message);
+      console.error("Google Auth error:", err?.code, err?.message);
       const errorCode = err?.code || "";
 
       switch (errorCode) {
-        case "auth/invalid-credential":
-          setError("Email hoặc mật khẩu không chính xác.");
+        case "auth/popup-closed-by-user":
+          setError("Bạn đã đóng cửa sổ đăng nhập Google.");
           break;
-        case "auth/user-not-found":
-          setError("Không tìm thấy tài khoản.");
+        case "auth/popup-blocked":
+          setError("Trình duyệt đang chặn cửa sổ đăng nhập Google. Vui lòng cho phép popup rồi thử lại.");
           break;
-        case "auth/wrong-password":
-          setError("Mật khẩu không chính xác.");
+        case "auth/cancelled-popup-request":
           break;
-        case "auth/invalid-email":
-          setError("Email không hợp lệ.");
-          break;
-        case "auth/too-many-requests":
-          setError("Có quá nhiều lần thử. Vui lòng thử lại sau.");
+        case "auth/account-exists-with-different-credential":
+          setError("Tài khoản đã tồn tại với phương thức đăng nhập khác. Vui lòng liên hệ quản trị viên.");
           break;
         case "auth/network-request-failed":
-          setError("Lỗi kết nối mạng. Vui lòng kiểm tra kết nối.");
+          setError("Không thể kết nối đến Google. Vui lòng kiểm tra mạng và thử lại.");
+          break;
+        case "auth/unauthorized-domain":
+          setError("Tên miền này chưa được thêm vào Authorized Domains trong Firebase Console.");
           break;
         default:
-          setError("Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.");
+          setError(err?.message || "Đăng nhập Google chưa thành công. Vui lòng thử lại sau.");
           break;
       }
     } finally {
@@ -330,12 +352,12 @@ export default function App() {
       }
 
       if (isInactive) {
-        setError("Mã học sinh này hiện không hoạt động.");
+        setError("Tài khoản hoặc mã học sinh này hiện chưa được kích hoạt. Vui lòng liên hệ giáo viên chủ nhiệm.");
         return;
       }
 
       if (!foundStudent) {
-        setError("Mã học sinh không hợp lệ. Vui lòng kiểm tra lại mã được giáo viên cung cấp.");
+        setError("Mã học sinh chưa chính xác hoặc không tồn tại trong hệ thống. Vui lòng kiểm tra lại mã được thầy/cô cung cấp.");
         return;
       }
 
@@ -357,8 +379,6 @@ export default function App() {
     }
     setUser(null);
     localStorage.removeItem("ai_smart_test_user");
-    setEmail("");
-    setPassword("");
     setStudentCode("");
     setError(null);
   };
@@ -388,143 +408,143 @@ export default function App() {
   }
 
   return (
-    <div id="login-portal-root" className="min-h-screen bg-[#F0F4F8] flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white border border-slate-100 rounded-[32px] p-8 shadow-xl shadow-slate-200/50 space-y-6 relative overflow-hidden transition-all duration-300">
-        
-        {/* Colorful top accent border */}
-        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-blue-500 via-indigo-500 via-purple-500 to-amber-400" />
+    <div
+      id="login-portal-root"
+      className="h-[100dvh] min-h-[100dvh] max-h-[100dvh] bg-[#F4F7FB] flex flex-col items-center justify-center p-3 sm:p-4 selection:bg-indigo-100 selection:text-indigo-900 relative overflow-y-auto sm:overflow-hidden"
+    >
+      {/* Subtle ambient light accents in background */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-24 -left-24 w-72 h-72 sm:w-96 sm:h-96 bg-indigo-200/30 rounded-full blur-3xl" />
+        <div className="absolute -bottom-24 -right-24 w-72 h-72 sm:w-96 sm:h-96 bg-blue-200/30 rounded-full blur-3xl" />
+      </div>
 
+      {/* Main Login Card - Compact & Balanced */}
+      <div className="relative z-10 w-full max-w-[420px] bg-white border border-slate-200/90 rounded-[24px] sm:rounded-[28px] px-6 py-5 sm:px-7 sm:py-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)] space-y-3.5 sm:space-y-4 transition-all duration-300">
+        
         {/* LOGO & BRANDING */}
-        <div className="text-center space-y-3 pt-2">
-          <div className="inline-flex bg-indigo-600 text-white p-3 rounded-2xl shadow-lg shadow-indigo-100 animate-pulse">
-            <Sparkles className="w-8 h-8" />
+        <div className="text-center space-y-1.5">
+          <div className="inline-flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white rounded-xl sm:rounded-2xl shadow-sm shadow-indigo-500/20">
+            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-indigo-950">HỌC VUI – CHƠI HAY</h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+            <h1 className="text-xl sm:text-[22px] font-black tracking-tight text-slate-900 leading-tight">
+              HỌC VUI – CHƠI HAY
+            </h1>
+            <p className="text-[11px] sm:text-xs text-slate-500 font-semibold mt-0.5">
               Học tập thông minh • Tiến bộ mỗi ngày
             </p>
           </div>
         </div>
 
-        {/* ROLE SELECTOR TOGGLE */}
-        <div className="bg-slate-100 border border-slate-200/50 p-1.5 rounded-2xl flex text-sm font-bold">
+        {/* ROLE SELECTOR TOGGLE (Segmented Control) */}
+        <div className="bg-slate-100/90 border border-slate-200/70 p-1 rounded-xl sm:rounded-2xl flex text-xs sm:text-[13px] font-bold">
           <button
             id="toggle-login-teacher"
+            type="button"
             onClick={() => { setLoginRole("teacher"); setError(null); }}
-            className={`flex-1 py-3 px-4 rounded-xl cursor-pointer text-center transition-all flex items-center justify-center gap-1.5 font-bold ${
+            className={`flex-1 py-2 px-3 rounded-lg sm:rounded-xl cursor-pointer text-center transition-all duration-200 flex items-center justify-center gap-1.5 font-bold ${
               loginRole === "teacher"
-                ? "bg-white text-indigo-700 shadow-sm border border-slate-200/30"
+                ? "bg-white text-indigo-950 shadow-xs border border-slate-200/60"
                 : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            <GraduationCap className="w-4 h-4 shrink-0" />
-            Giáo viên
+            <GraduationCap className="w-4 h-4 shrink-0 text-indigo-600" />
+            <span>Giáo viên</span>
           </button>
           <button
             id="toggle-login-student"
+            type="button"
             onClick={() => { setLoginRole("student"); setError(null); }}
-            className={`flex-1 py-3 px-4 rounded-xl cursor-pointer text-center transition-all flex items-center justify-center gap-1.5 font-bold ${
+            className={`flex-1 py-2 px-3 rounded-lg sm:rounded-xl cursor-pointer text-center transition-all duration-200 flex items-center justify-center gap-1.5 font-bold ${
               loginRole === "student"
-                ? "bg-white text-amber-600 shadow-sm border border-slate-200/30"
+                ? "bg-white text-slate-900 shadow-xs border border-slate-200/60"
                 : "text-slate-500 hover:text-slate-800"
             }`}
           >
-            <Smile className="w-4 h-4 shrink-0" />
-            Học sinh
+            <Smile className="w-4 h-4 shrink-0 text-amber-500" />
+            <span>Học sinh</span>
           </button>
         </div>
 
         {/* ERROR DISPLAYER */}
         {error && (
-          <div className="bg-red-50 border-l-4 border-rose-500 p-4 rounded-2xl flex items-start gap-2">
-            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-            <span className="text-rose-800 font-bold text-xs leading-relaxed">{error}</span>
+          <div className="bg-rose-50/90 border border-rose-200/90 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div className="text-[11px] sm:text-xs font-semibold leading-snug">{error}</div>
           </div>
         )}
 
-        {/* LOGIN FORM - TEACHER */}
+        {/* LOGIN FORM - TEACHER (GOOGLE AUTH) */}
         {loginRole === "teacher" ? (
-          <form onSubmit={handleTeacherLogin} className="space-y-4">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Địa chỉ Email của thầy/cô</label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
-                <input
-                  id="input-teacher-email"
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="tram.ai.ctst@gmail.com"
-                  className="w-full bg-slate-50 border border-slate-100 hover:border-slate-200 focus:bg-white rounded-2xl pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Mật khẩu</label>
-              <div className="relative">
-                <Key className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
-                <input
-                  id="input-teacher-password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Nhập mật khẩu giáo viên"
-                  className="w-full bg-slate-50 border border-slate-100 hover:border-slate-200 focus:bg-white rounded-2xl pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-medium"
-                />
-              </div>
+          <div className="space-y-4 py-1.5">
+            <div className="text-center space-y-1">
+              <h2 className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
+                ĐĂNG NHẬP GIÁO VIÊN
+              </h2>
+              <p className="text-[11px] sm:text-xs text-slate-500 font-medium leading-relaxed">
+                Đăng nhập bằng tài khoản Google để quản lý lớp học, ngân hàng đề & bài kiểm tra.
+              </p>
             </div>
 
             <button
-              id="btn-login-teacher"
-              type="submit"
+              id="btn-login-teacher-google"
+              type="button"
+              onClick={handleTeacherGoogleLogin}
               disabled={loginLoading}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black rounded-3xl text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-100 active:scale-[0.98] transition-all"
+              className="w-full h-12 sm:h-13 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/15 text-slate-700 font-bold rounded-xl sm:rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-3 cursor-pointer shadow-xs hover:shadow-sm active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {loginLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin text-indigo-600 shrink-0" />
+                  <span className="font-bold text-slate-700">Đang kết nối Google...</span>
+                </>
               ) : (
                 <>
-                  Vào khu vực quản lý
-                  <ArrowRight className="w-4 h-4" />
+                  <GoogleIcon className="w-5 h-5 shrink-0" />
+                  <span>Đăng nhập bằng Google</span>
                 </>
               )}
             </button>
-          </form>
+          </div>
         ) : (
           // LOGIN FORM - STUDENT
-          <form onSubmit={handleStudentLogin} className="space-y-4">
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Nhập Mã học sinh được cấp</label>
+          <form onSubmit={handleStudentLogin} className="space-y-3">
+            <div className="space-y-1">
+              <label htmlFor="input-student-code" className="block text-[10px] sm:text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                MÃ HỌC SINH ĐƯỢC CẤP
+              </label>
               <div className="relative">
-                <Users className="absolute left-3.5 top-4 w-4 h-4 text-slate-400" />
+                <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                 <input
                   id="input-student-code"
                   type="text"
                   required
                   value={studentCode}
                   onChange={(e) => setStudentCode(e.target.value)}
-                  placeholder="Ví dụ: HS5C01..."
-                  className="w-full bg-slate-50 border border-slate-100 hover:border-slate-200 focus:bg-white rounded-2xl pl-10 pr-4 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all font-bold text-slate-800 uppercase"
+                  placeholder="Ví dụ: HS5C01"
+                  className="w-full h-11 sm:h-12 bg-slate-50/80 hover:bg-slate-50 focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-amber-500 rounded-xl sm:rounded-2xl pl-10 pr-3.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-amber-500/15 transition-all font-bold uppercase tracking-wider"
                 />
               </div>
+              <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium pt-0.5 pl-0.5">
+                Nhập mã học sinh do thầy/cô chủ nhiệm cung cấp.
+              </p>
             </div>
 
             <button
               id="btn-login-student"
               type="submit"
               disabled={loginLoading}
-              className="w-full bg-amber-400 hover:bg-amber-500 disabled:bg-amber-300 text-slate-900 font-black py-4 px-4 rounded-3xl text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-amber-100/50 active:scale-[0.98] transition-all"
+              className="w-full h-11 sm:h-12 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 active:from-amber-600 active:to-amber-700 disabled:opacity-60 text-slate-950 font-extrabold rounded-xl sm:rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-amber-500/20 active:scale-[0.99] transition-all disabled:cursor-not-allowed disabled:shadow-none mt-1"
             >
               {loginLoading ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                  <span>Đang kiểm tra mã...</span>
+                </>
               ) : (
                 <>
-                  Bắt đầu học và làm bài
-                  <ArrowRight className="w-4 h-4 text-slate-900" />
+                  <span>Đăng nhập</span>
+                  <ArrowRight className="w-4 h-4 text-slate-950" />
                 </>
               )}
             </button>
@@ -532,7 +552,13 @@ export default function App() {
         )}
       </div>
 
-      <Footer className="mt-8" />
+      {/* Streamlined Compact Footer */}
+      <footer className="mt-2.5 sm:mt-3 text-center text-slate-400 text-[10px] sm:text-[11px] font-medium space-y-0.5 shrink-0">
+        <p className="text-slate-500 font-bold">Tác giả: Hồng Bích Trâm</p>
+        <p className="text-[9px] sm:text-[10px] text-slate-400">
+          © 2026 HỌC VUI – CHƠI HAY • Hỗ trợ học tập thông minh
+        </p>
+      </footer>
     </div>
   );
 }
