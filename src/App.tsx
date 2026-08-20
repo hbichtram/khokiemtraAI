@@ -5,7 +5,7 @@ import StudentDashboard from "./components/StudentDashboard";
 import { 
   Sparkles, GraduationCap, Users,
   ArrowRight, AlertCircle, RefreshCw, Smile,
-  Loader2
+  Loader2, Copy, Check, Globe, ShieldAlert
 } from "lucide-react";
 import { 
   GoogleAuthProvider,
@@ -22,8 +22,15 @@ import {
   query,
   where 
 } from "firebase/firestore";
-import { auth, db as firestoreDb } from "./firebase";
+import { auth, db as firestoreDb, firebaseConfig } from "./firebase";
 import { DEFAULT_SEED_DATA } from "./lib/firestoreData";
+
+interface AuthErrorState {
+  title?: string;
+  message: string;
+  type?: "unauthorized-domain" | "unauthorized-teacher" | "general";
+  domain?: string;
+}
 
 function GoogleIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -58,7 +65,8 @@ export default function App() {
 
   const [appLoading, setAppLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<AuthErrorState | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState(false);
 
   useEffect(() => {
     // Fetch classes list to dynamically render student login code suggestions & placeholders
@@ -84,7 +92,7 @@ export default function App() {
         let teacherPhotoURL = fbUser.photoURL || undefined;
 
         try {
-          // Attempt to fetch teacher profile in Firestore (Collection: teachers, Document ID: UID)
+          // Check teacher document in Firestore (Collection: teachers, Document ID: UID)
           const teacherDocRef = doc(firestoreDb, "teachers", fbUser.uid);
           const docSnap = await getDoc(teacherDocRef);
 
@@ -96,9 +104,37 @@ export default function App() {
             if (data.photoURL) {
               teacherPhotoURL = data.photoURL;
             }
+
+            const teacherData: User = {
+              id: fbUser.uid,
+              name: name,
+              email: userEmail,
+              photoURL: teacherPhotoURL,
+              role: "teacher"
+            };
+
+            setUser(teacherData);
+            localStorage.setItem("ai_smart_test_user", JSON.stringify(teacherData));
           } else {
-            // Auto-provision teacher doc in Firestore if it doesn't exist yet
+            // Check if teacher profile exists by email or is designated admin
+            const isOwnerOrAdmin = userEmail.toLowerCase() === "tram.ai.ctst@gmail.com";
+            let foundByEmail = false;
+
             try {
+              const teachersCol = collection(firestoreDb, "teachers");
+              const qEmail = query(teachersCol, where("email", "==", userEmail));
+              const emailSnap = await getDocs(qEmail);
+              if (!emailSnap.empty) {
+                foundByEmail = true;
+                const data = emailSnap.docs[0].data();
+                name = data.fullName || data.name || name;
+                if (data.photoURL) teacherPhotoURL = data.photoURL;
+              }
+            } catch (e) {
+              console.warn("Check teacher by email query:", e);
+            }
+
+            if (isOwnerOrAdmin || foundByEmail) {
               await setDoc(teacherDocRef, {
                 uid: fbUser.uid,
                 fullName: name,
@@ -112,24 +148,22 @@ export default function App() {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               }, { merge: true });
-            } catch (saveErr) {
-              console.warn("Unable to save teacher doc to Firestore:", saveErr);
+
+              const teacherData: User = {
+                id: fbUser.uid,
+                name: name,
+                email: userEmail,
+                photoURL: teacherPhotoURL,
+                role: "teacher"
+              };
+
+              setUser(teacherData);
+              localStorage.setItem("ai_smart_test_user", JSON.stringify(teacherData));
             }
           }
         } catch (e) {
-          console.warn("Auth state sync Firestore error (continuing with auth user):", e);
+          console.warn("Auth state sync Firestore notice:", e);
         }
-
-        const teacherData: User = {
-          id: fbUser.uid,
-          name: name,
-          email: userEmail,
-          photoURL: teacherPhotoURL,
-          role: "teacher"
-        };
-
-        setUser(teacherData);
-        localStorage.setItem("ai_smart_test_user", JSON.stringify(teacherData));
       } else {
         // If not authenticated via Firebase Auth, check if student session exists in localStorage
         const savedUser = localStorage.getItem("ai_smart_test_user");
@@ -158,7 +192,12 @@ export default function App() {
 
   const handleTeacherGoogleLogin = async () => {
     setLoginLoading(true);
-    setError(null);
+    setAuthError(null);
+
+    // Development & diagnostic logs (without sensitive tokens)
+    console.log("Current hostname:", window.location.hostname);
+    console.log("Firebase project:", firebaseConfig.projectId);
+    console.log("Firebase authDomain:", firebaseConfig.authDomain);
 
     try {
       const googleProvider = new GoogleAuthProvider();
@@ -170,25 +209,46 @@ export default function App() {
       const fbUser = result.user;
 
       if (!fbUser) {
-        throw new Error("Không nhận được thông tin tài khoản Google.");
+        throw new Error("Không nhận được thông tin tài khoản Google từ dịch vụ xác thực.");
       }
+
+      console.log("Google authentication success. UID:", fbUser.uid);
+      console.log("Authenticated Email:", fbUser.email);
 
       let teacherName = fbUser.displayName || "Giáo viên";
       let teacherPhotoURL = fbUser.photoURL || undefined;
       const teacherEmail = fbUser.email || "";
 
-      // Check teachers/{UID} in Firestore
-      try {
-        const teacherDocRef = doc(firestoreDb, "teachers", fbUser.uid);
-        const docSnap = await getDoc(teacherDocRef);
+      // Step: Check teachers/{UID} in Firestore
+      const teacherDocRef = doc(firestoreDb, "teachers", fbUser.uid);
+      const docSnap = await getDoc(teacherDocRef);
 
-        if (docSnap.exists()) {
-          const teacherInfo = docSnap.data();
-          teacherName = teacherInfo.fullName || teacherInfo.name || teacherName;
-          if (teacherInfo.photoURL) {
-            teacherPhotoURL = teacherInfo.photoURL;
+      if (docSnap.exists()) {
+        const teacherInfo = docSnap.data();
+        teacherName = teacherInfo.fullName || teacherInfo.name || teacherName;
+        if (teacherInfo.photoURL) {
+          teacherPhotoURL = teacherInfo.photoURL;
+        }
+      } else {
+        // Check if teacher profile exists by email or is designated admin
+        const isOwnerOrAdmin = teacherEmail.toLowerCase() === "tram.ai.ctst@gmail.com";
+        let foundByEmail = false;
+
+        try {
+          const teachersCol = collection(firestoreDb, "teachers");
+          const qEmail = query(teachersCol, where("email", "==", teacherEmail));
+          const emailSnap = await getDocs(qEmail);
+          if (!emailSnap.empty) {
+            foundByEmail = true;
+            const data = emailSnap.docs[0].data();
+            teacherName = data.fullName || data.name || teacherName;
+            if (data.photoURL) teacherPhotoURL = data.photoURL;
           }
-        } else {
+        } catch (e) {
+          console.warn("Check teacher by email query:", e);
+        }
+
+        if (isOwnerOrAdmin || foundByEmail) {
           await setDoc(teacherDocRef, {
             uid: fbUser.uid,
             fullName: teacherName,
@@ -202,9 +262,17 @@ export default function App() {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           }, { merge: true });
+        } else {
+          // Error B: Authenticated with Google successfully, but account is not authorized as teacher
+          await signOut(auth);
+          setAuthError({
+            title: "Tài khoản chưa được cấp quyền giáo viên",
+            message: "Tài khoản Google này chưa có trong danh sách giáo viên. Vui lòng liên hệ quản trị viên để được cấp quyền giảng dạy.",
+            type: "unauthorized-teacher"
+          });
+          setLoginLoading(false);
+          return;
         }
-      } catch (fsErr) {
-        console.warn("Firestore teacher profile fetch/create notice:", fsErr);
       }
 
       const teacherUser: User = {
@@ -218,29 +286,45 @@ export default function App() {
       setUser(teacherUser);
       localStorage.setItem("ai_smart_test_user", JSON.stringify(teacherUser));
     } catch (err: any) {
-      console.error("Google Auth error:", err?.code, err?.message);
+      console.error("Google login error:", err?.code, err?.message);
       const errorCode = err?.code || "";
 
       switch (errorCode) {
+        case "auth/unauthorized-domain":
+          // Error A: Unauthorized domain in Firebase Authentication settings
+          setAuthError({
+            title: "Tên miền chưa được cấp quyền đăng nhập Google",
+            message: "Quản trị viên cần thêm tên miền hiện tại vào Firebase Authentication → Settings → Authorized domains.",
+            type: "unauthorized-domain",
+            domain: window.location.hostname
+          });
+          break;
         case "auth/popup-closed-by-user":
-          setError("Bạn đã đóng cửa sổ đăng nhập Google.");
+          setAuthError({
+            message: "Bạn đã đóng cửa sổ đăng nhập Google."
+          });
           break;
         case "auth/popup-blocked":
-          setError("Trình duyệt đang chặn cửa sổ đăng nhập Google. Vui lòng cho phép popup rồi thử lại.");
+          setAuthError({
+            message: "Trình duyệt đang chặn cửa sổ đăng nhập Google. Vui lòng cho phép popup rồi thử lại."
+          });
           break;
         case "auth/cancelled-popup-request":
           break;
         case "auth/account-exists-with-different-credential":
-          setError("Tài khoản đã tồn tại với phương thức đăng nhập khác. Vui lòng liên hệ quản trị viên.");
+          setAuthError({
+            message: "Tài khoản đã tồn tại với phương thức đăng nhập khác. Vui lòng liên hệ quản trị viên."
+          });
           break;
         case "auth/network-request-failed":
-          setError("Không thể kết nối đến Google. Vui lòng kiểm tra mạng và thử lại.");
-          break;
-        case "auth/unauthorized-domain":
-          setError("Tên miền này chưa được thêm vào Authorized Domains trong Firebase Console.");
+          setAuthError({
+            message: "Không thể kết nối đến máy chủ Google. Vui lòng kiểm tra lại đường truyền mạng."
+          });
           break;
         default:
-          setError(err?.message || "Đăng nhập Google chưa thành công. Vui lòng thử lại sau.");
+          setAuthError({
+            message: err?.message || "Đăng nhập Google chưa thành công. Vui lòng thử lại sau."
+          });
           break;
       }
     } finally {
@@ -252,12 +336,12 @@ export default function App() {
     e.preventDefault();
     const cleanCode = studentCode.trim().toUpperCase();
     if (!cleanCode) {
-      setError("Vui lòng nhập Mã học sinh.");
+      setAuthError({ message: "Vui lòng nhập Mã học sinh." });
       return;
     }
 
     setLoginLoading(true);
-    setError(null);
+    setAuthError(null);
 
     try {
       let foundStudent: any = null;
@@ -352,12 +436,12 @@ export default function App() {
       }
 
       if (isInactive) {
-        setError("Tài khoản hoặc mã học sinh này hiện chưa được kích hoạt. Vui lòng liên hệ giáo viên chủ nhiệm.");
+        setAuthError({ message: "Tài khoản hoặc mã học sinh này hiện chưa được kích hoạt. Vui lòng liên hệ giáo viên chủ nhiệm." });
         return;
       }
 
       if (!foundStudent) {
-        setError("Mã học sinh chưa chính xác hoặc không tồn tại trong hệ thống. Vui lòng kiểm tra lại mã được thầy/cô cung cấp.");
+        setAuthError({ message: "Mã học sinh chưa chính xác hoặc không tồn tại trong hệ thống. Vui lòng kiểm tra lại mã được thầy/cô cung cấp." });
         return;
       }
 
@@ -365,10 +449,19 @@ export default function App() {
       localStorage.setItem("ai_smart_test_user", JSON.stringify(foundStudent));
     } catch (err: any) {
       console.error("Student login error:", err);
-      setError("Không thể kết nối đến hệ thống. Vui lòng thử lại sau.");
+      setAuthError({ message: "Không thể kết nối đến hệ thống. Vui lòng thử lại sau." });
     } finally {
       setLoginLoading(false);
     }
+  };
+
+  const handleCopyDomain = (domainToCopy: string) => {
+    navigator.clipboard.writeText(domainToCopy).then(() => {
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2500);
+    }).catch((e) => {
+      console.error("Copy domain error:", e);
+    });
   };
 
   const handleLogout = async () => {
@@ -380,7 +473,7 @@ export default function App() {
     setUser(null);
     localStorage.removeItem("ai_smart_test_user");
     setStudentCode("");
-    setError(null);
+    setAuthError(null);
   };
 
   const handleUpdateUser = (updatedUser: User) => {
@@ -441,7 +534,7 @@ export default function App() {
           <button
             id="toggle-login-teacher"
             type="button"
-            onClick={() => { setLoginRole("teacher"); setError(null); }}
+            onClick={() => { setLoginRole("teacher"); setAuthError(null); }}
             className={`flex-1 py-2 px-3 rounded-lg sm:rounded-xl cursor-pointer text-center transition-all duration-200 flex items-center justify-center gap-1.5 font-bold ${
               loginRole === "teacher"
                 ? "bg-white text-indigo-950 shadow-xs border border-slate-200/60"
@@ -454,7 +547,7 @@ export default function App() {
           <button
             id="toggle-login-student"
             type="button"
-            onClick={() => { setLoginRole("student"); setError(null); }}
+            onClick={() => { setLoginRole("student"); setAuthError(null); }}
             className={`flex-1 py-2 px-3 rounded-lg sm:rounded-xl cursor-pointer text-center transition-all duration-200 flex items-center justify-center gap-1.5 font-bold ${
               loginRole === "student"
                 ? "bg-white text-slate-900 shadow-xs border border-slate-200/60"
@@ -467,10 +560,53 @@ export default function App() {
         </div>
 
         {/* ERROR DISPLAYER */}
-        {error && (
-          <div className="bg-rose-50/90 border border-rose-200/90 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl flex items-start gap-2 text-rose-900 animate-in fade-in duration-200">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-            <div className="text-[11px] sm:text-xs font-semibold leading-snug">{error}</div>
+        {authError && (
+          <div className="bg-rose-50/95 border border-rose-200 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl space-y-2 text-rose-950 animate-in fade-in duration-200">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="space-y-0.5 flex-1">
+                {authError.title ? (
+                  <div className="text-xs sm:text-[13px] font-bold text-rose-900 leading-tight">
+                    {authError.title}
+                  </div>
+                ) : null}
+                <div className="text-[11px] sm:text-xs text-rose-800 font-medium leading-relaxed">
+                  {authError.message}
+                </div>
+              </div>
+            </div>
+
+            {authError.type === "unauthorized-domain" && authError.domain && (
+              <div className="pt-1.5 border-t border-rose-200/80 space-y-1.5">
+                <div className="flex items-center justify-between gap-2 bg-white/95 border border-rose-200 rounded-lg sm:rounded-xl px-2.5 py-1.5 text-[11px]">
+                  <div className="flex items-center gap-1.5 truncate font-mono font-semibold text-slate-700">
+                    <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span className="truncate">{authError.domain}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyDomain(authError.domain!)}
+                    className="shrink-0 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-md flex items-center gap-1 text-[10px] cursor-pointer transition-colors"
+                    title="Sao chép hostname này"
+                  >
+                    {copiedDomain ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="text-emerald-700 font-bold">Đã chép</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>Sao chép</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 font-medium leading-snug">
+                  Mở <strong>Firebase Console</strong> → <strong>Authentication</strong> → <strong>Settings</strong> → <strong>Authorized domains</strong> và thêm tên miền trên.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
