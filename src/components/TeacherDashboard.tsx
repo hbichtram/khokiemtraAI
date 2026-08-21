@@ -6,13 +6,14 @@ import ExamBank from "./ExamBank";
 import TeacherReportScreen from "./TeacherReportScreen";
 import GameManager from "./GameManager";
 import TeacherSettingsModal from "./TeacherSettingsModal";
+import BannerEditor from "./BannerEditor";
 import Footer from "./Footer";
 import { 
   BarChart, Users, BookOpen, Clock, Activity, LogOut, 
   Sparkles, Layers, BarChart2, ArrowRight, CheckCircle2, RefreshCw,
   User as UserIcon, Lock, Settings, ChevronDown, Gamepad2,
   PanelLeftClose, PanelLeftOpen, ClipboardList, Menu, X,
-  GraduationCap, AlertCircle, Calendar, FileText
+  GraduationCap, AlertCircle, Calendar, FileText, Image as ImageIcon
 } from "lucide-react";
 
 import { fsGetTeacherOverview } from "../lib/firestoreData";
@@ -48,6 +49,7 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsModalTab, setSettingsModalTab] = useState<"profile" | "security" | "settings">("profile");
   const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
+  const [isBannerEditorOpen, setIsBannerEditorOpen] = useState(false);
 
   useEffect(() => {
     if (activeTab === "overview") {
@@ -374,6 +376,18 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
 
           {/* Right Header Actions */}
           <div className="flex items-center gap-2 shrink-0">
+            {/* Student Banner Customizer Trigger */}
+            <button
+              id="btn-teacher-student-banner"
+              type="button"
+              onClick={() => setIsBannerEditorOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-700 font-bold rounded-lg text-xs transition-all cursor-pointer shadow-2xs active:scale-95"
+              title="Tùy chỉnh kích thước bằng chuột & giao diện Banner học sinh"
+            >
+              <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline text-[11px]">Banner học sinh</span>
+            </button>
+
             {/* Refresh Button */}
             <button
               type="button"
@@ -458,6 +472,16 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
                     >
                       <Settings className="w-3.5 h-3.5 text-indigo-600" />
                       Cài đặt ứng dụng
+                    </button>
+
+                    <button
+                      id="btn-dropdown-banner-editor"
+                      type="button"
+                      onClick={() => { setIsAccountMenuOpen(false); setIsBannerEditorOpen(true); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50/70 hover:bg-indigo-100 transition-colors cursor-pointer text-left"
+                    >
+                      <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                      Banner học sinh (Resize chuột)
                     </button>
 
                     <div className="pt-1 border-t border-slate-100">
@@ -803,6 +827,13 @@ export default function TeacherDashboard({ user, onLogout, onUpdateUser }: Teach
         user={user}
         onUpdateUser={onUpdateUser}
         onLogout={onLogout}
+      />
+
+      {/* STUDENT BANNER INTERACTIVE MOUSE RESIZE EDITOR */}
+      <BannerEditor
+        isOpen={isBannerEditorOpen}
+        onClose={() => setIsBannerEditorOpen(false)}
+        userId={user.id}
       />
     </div>
   );

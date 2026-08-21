@@ -13,6 +13,9 @@ import { doc, getDoc } from "firebase/firestore";
 import { db as firestoreDb } from "../firebase";
 import { computeClassLeaderboard, LeaderboardItem } from "../lib/leaderboard";
 import { sortAndProcessAssignments, formatRemainingTime, ProcessedAssignment } from "../lib/assignmentUtils";
+import StudentBanner from "./StudentBanner";
+import { getStudentBannerConfig, DEFAULT_BANNER_CONFIG } from "../lib/bannerStorage";
+import { StudentBannerConfig } from "../types";
 
 interface StudentDashboardProps {
   user: User;
@@ -20,6 +23,7 @@ interface StudentDashboardProps {
 }
 
 export default function StudentDashboard({ user, onLogout }: StudentDashboardProps) {
+  const [bannerConfig, setBannerConfig] = useState<StudentBannerConfig>(DEFAULT_BANNER_CONFIG);
   const [activeAssignments, setActiveAssignments] = useState<any[]>([]);
   const [completedAssignments, setCompletedAssignments] = useState<any[]>([]);
   const [allSortedAssignments, setAllSortedAssignments] = useState<ProcessedAssignment[]>([]);
@@ -83,6 +87,9 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
   useEffect(() => {
     if (viewState === "dashboard") {
       fetchDashboardData();
+      getStudentBannerConfig().then((cfg) => {
+        if (cfg) setBannerConfig(cfg);
+      });
     }
   }, [viewState]);
 
@@ -295,7 +302,10 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-5 mt-8 space-y-8 animate-fadeIn">
+      <main className="max-w-6xl mx-auto px-5 mt-6 sm:mt-8 space-y-6 sm:space-y-8 animate-fadeIn">
+        {/* STUDENT WELCOME & MOTIVATIONAL BANNER */}
+        <StudentBanner config={bannerConfig} canEdit={false} />
+
         {studentTab === "games" ? (
           <StudentGamesScreen user={user} />
         ) : (

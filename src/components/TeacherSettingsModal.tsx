@@ -4,8 +4,9 @@ import {
   User as UserIcon, Lock, Settings, LogOut, X, 
   Check, Edit3, Save, ShieldCheck, Mail, Phone, 
   Building, BookOpen, Key, AlertCircle, RefreshCw, Sparkles, UserCheck,
-  Camera, Upload, Trash2
+  Camera, Upload, Trash2, Image as ImageIcon
 } from "lucide-react";
+import BannerEditor from "./BannerEditor";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { updatePassword } from "firebase/auth";
 import { auth, db as firestoreDb } from "../firebase";
@@ -64,6 +65,7 @@ export default function TeacherSettingsModal({
   const [autoRefreshStats, setAutoRefreshStats] = useState(true);
   const [appTheme, setAppTheme] = useState("light");
   const [settingsSuccess, setSettingsSuccess] = useState<string | null>(null);
+  const [isBannerEditorOpen, setIsBannerEditorOpen] = useState(false);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -788,6 +790,26 @@ export default function TeacherSettingsModal({
                       />
                     </div>
 
+                    {/* Banner Customization */}
+                    <div className="bg-gradient-to-r from-indigo-50/70 to-purple-50/70 border border-indigo-100 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <h4 className="font-black text-xs text-indigo-900 flex items-center gap-1.5">
+                          <ImageIcon className="w-4 h-4 text-indigo-600" />
+                          Banner Giao diện Học sinh (Interactive Resize)
+                        </h4>
+                        <p className="text-[11px] text-indigo-700/80 mt-0.5">
+                          Tùy chỉnh kích thước bằng kéo chuột, đổi slogan và hình ảnh chào mừng học sinh
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsBannerEditorOpen(true)}
+                        className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-sm transition-all cursor-pointer whitespace-nowrap active:scale-95 shrink-0"
+                      >
+                        Mở trình chỉnh sửa banner
+                      </button>
+                    </div>
+
                     {/* Language Preference */}
                     <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex items-center justify-between">
                       <div>
@@ -813,6 +835,13 @@ export default function TeacherSettingsModal({
           )}
         </div>
       </div>
+
+      {/* BANNER EDITOR SUB-MODAL */}
+      <BannerEditor
+        isOpen={isBannerEditorOpen}
+        onClose={() => setIsBannerEditorOpen(false)}
+        userId={user.id}
+      />
     </div>
   );
 }

@@ -141,3 +141,19 @@ export interface User {
   totalGamePoints?: number;
   gameHistory?: GameRecord[];
 }
+
+export interface StudentBannerConfig {
+  widthPercent: number; // 50 - 100%
+  customWidthPx?: number; // optional custom px width for advanced mode
+  height: number; // e.g. 160 - 320 px (default 210px)
+  aspectRatioLocked: boolean;
+  aspectRatioValue?: number; // e.g. 16 / 4.5
+  title?: string;
+  subtitle?: string;
+  messages?: string[];
+  imageUrl?: string; // custom image url or data url
+  showPills?: boolean;
+  themeStyle?: "brand-gradient" | "playful-indigo" | "sunshine-gold" | "emerald-fresh";
+  updatedAt?: string;
+  updatedBy?: string;
+}
