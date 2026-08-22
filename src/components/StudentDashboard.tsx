@@ -13,7 +13,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { db as firestoreDb } from "../firebase";
 import { computeClassLeaderboard, LeaderboardItem } from "../lib/leaderboard";
 import { sortAndProcessAssignments, formatRemainingTime, ProcessedAssignment } from "../lib/assignmentUtils";
-import StudentBanner from "./StudentBanner";
+import StudentHero from "./StudentHero";
 import { getStudentBannerConfig, DEFAULT_BANNER_CONFIG } from "../lib/bannerStorage";
 import { StudentBannerConfig } from "../types";
 
@@ -242,82 +242,77 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
 
   return (
     <div id="student-dashboard-root" className="min-h-screen bg-slate-50 text-slate-800 pb-16 font-sans">
-      {/* CUTE STUDENT HERO HEADER */}
-      <header className="bg-gradient-to-r from-amber-400 to-amber-500 text-slate-900 border-b border-amber-500 shadow-lg">
-        <div className="max-w-6xl mx-auto px-5 py-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4 text-center sm:text-left">
-            <div className="bg-slate-900 text-amber-400 p-3.5 rounded-3xl shadow-md shrink-0">
-              <GraduationCap className="w-8 h-8" />
-            </div>
-            <div>
-              <div className="flex items-center justify-center sm:justify-start gap-1.5">
-                <h1 className="text-xl md:text-2xl font-black tracking-tight">Chào mừng em, {user.name}!</h1>
-                <Smile className="w-6 h-6 text-slate-900 shrink-0 animate-bounce" />
-              </div>
-              <p className="text-xs md:text-sm font-bold text-slate-800 mt-1">
-                Lớp: <strong className="text-slate-950 font-black">{classInfo?.name || user.className || "Tin học 5A"}</strong> | Mã HS: <strong className="text-slate-950 font-black font-mono">{user.studentCode}</strong>
-              </p>
-              <p className="text-xs md:text-sm font-bold text-slate-800 mt-0.5">
-                Giáo viên: <strong className="text-slate-950 font-black">Hồng Bích Trâm</strong>
-              </p>
-            </div>
-          </div>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
+        {/* ========================================================== */}
+        {/* 1. MỘT HERO BANNER DUY NHẤT (STUDENT HERO) */}
+        {/* ========================================================== */}
+        <StudentHero
+          user={user}
+          classInfo={classInfo}
+          teacherName="Hồng Bích Trâm"
+          onLogout={onLogout}
+          bannerConfig={bannerConfig}
+          completedAssignmentsCount={completedAssignmentsList.length}
+        />
 
-          <button
-            onClick={onLogout}
-            className="bg-slate-900 hover:bg-slate-950 text-amber-400 font-extrabold text-xs px-5 py-3 rounded-2xl cursor-pointer flex items-center gap-2 transition-all shadow-md active:scale-[0.98]"
-          >
-            <LogOut className="w-4 h-4 shrink-0" />
-            Đăng xuất
-          </button>
-        </div>
-
-        {/* Student Sub-Navigation Bar */}
-        <div className="bg-amber-600/15 border-t border-amber-500/20 backdrop-blur-md px-4 py-3">
-          <div className="max-w-3xl mx-auto grid grid-cols-2 gap-3 sm:gap-4 p-1.5 bg-slate-950/20 rounded-2xl border border-amber-500/20 shadow-inner">
+        {/* ========================================================== */}
+        {/* 2. THANH CHUYỂN TAB (BÀI KIỂM TRA / TRÒ CHƠI) NGAY DƯỚI HERO */}
+        {/* ========================================================== */}
+        <div className="flex items-center justify-center">
+          <div className="w-full max-w-xl grid grid-cols-2 gap-2 p-1.5 bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-sm">
             <button
+              id="btn-tab-student-tests"
+              type="button"
               onClick={() => setStudentTab("tests")}
-              className={`w-full flex items-center justify-center gap-2.5 px-4 py-3 sm:py-3.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer text-center ${
+              className={`w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
                 studentTab === "tests"
-                  ? "bg-slate-900 text-amber-300 shadow-lg shadow-slate-950/20 ring-1 ring-amber-400/30 scale-[1.01]"
-                  : "bg-white/50 text-slate-900 hover:bg-white/80 hover:text-slate-950"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25 scale-[1.01]"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
               <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
               <span>Bài kiểm tra</span>
+              {allSortedAssignments.length > 0 && (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold ${
+                  studentTab === "tests" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                }`}>
+                  {allSortedAssignments.length}
+                </span>
+              )}
             </button>
 
             <button
+              id="btn-tab-student-games"
+              type="button"
               onClick={() => setStudentTab("games")}
-              className={`w-full flex items-center justify-center gap-2.5 px-4 py-3 sm:py-3.5 rounded-xl text-xs sm:text-sm font-black transition-all cursor-pointer text-center ${
+              className={`w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
                 studentTab === "games"
-                  ? "bg-slate-900 text-amber-300 shadow-lg shadow-slate-950/20 ring-1 ring-amber-400/30 scale-[1.01]"
-                  : "bg-white/50 text-slate-900 hover:bg-white/80 hover:text-slate-950"
+                  ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25 scale-[1.01]"
+                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               }`}
             >
-              <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 text-amber-400" />
+              <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
               <span>Trò chơi</span>
             </button>
           </div>
         </div>
-      </header>
 
-      <main className="max-w-6xl mx-auto px-5 mt-6 sm:mt-8 space-y-6 sm:space-y-8 animate-fadeIn">
-        {/* STUDENT WELCOME & MOTIVATIONAL BANNER */}
-        <StudentBanner config={bannerConfig} canEdit={false} />
+        {/* ========================================================== */}
+        {/* 3. MAIN WORKSPACE / CONTENT */}
+        {/* ========================================================== */}
+        <main className="space-y-6 animate-fadeIn">
+          {studentTab === "games" ? (
+            <StudentGamesScreen user={user} />
+          ) : (
+            <>
+              {error && (
+                <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-2xl flex items-start gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                  <span className="text-rose-800 font-bold text-xs">{error}</span>
+                </div>
+              )}
 
-        {studentTab === "games" ? (
-          <StudentGamesScreen user={user} />
-        ) : (
-          <>
-        {error && (
-          <div className="bg-rose-50 border-l-4 border-rose-500 p-4 rounded-2xl flex items-start gap-2.5">
-            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-            <span className="text-rose-800 font-bold text-xs">{error}</span>
-          </div>
-        )}
-
-        {loading ? (
+              {loading ? (
           <div className="p-16 text-center bg-white border border-slate-100 rounded-[32px] flex flex-col items-center justify-center gap-3">
             <RefreshCw className="w-12 h-12 animate-spin text-amber-500" />
             <h3 className="font-black text-slate-800 text-lg">Đang đồng bộ bảng học tập của em...</h3>
@@ -792,12 +787,13 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
             </div>
           </div>
         </div>
-      )}
-      </>
-      )}
+              )}
+            </>
+          )}
 
-        <Footer className="mt-12 pt-6 border-t border-slate-200/60" />
-      </main>
+          <Footer className="mt-12 pt-6 border-t border-slate-200/60" />
+        </main>
+      </div>
     </div>
   );
 }
