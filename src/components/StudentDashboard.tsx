@@ -249,7 +249,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
         <StudentHero
           user={user}
           classInfo={classInfo}
-          teacherName="Hồng Bích Trâm"
+          teacherName={classInfo?.teacherName || classInfo?.teacher || (user as any).teacherName || "Hồng Bích Trâm"}
           onLogout={onLogout}
           bannerConfig={bannerConfig}
           completedAssignmentsCount={completedAssignmentsList.length}
@@ -346,8 +346,8 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                         : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                     }`}
                   >
-                    <Clock className="w-4 h-4 shrink-0" />
-                    <span className="truncate">CHƯA LÀM</span>
+                    <Clock className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">🕐 CHƯA LÀM</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
                       examCategoryTab === "pending"
                         ? "bg-slate-950 text-amber-300"
@@ -366,8 +366,8 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                         : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                     }`}
                   >
-                    <CheckCircle2 className="w-4 h-4 shrink-0" />
-                    <span className="truncate">ĐÃ HOÀN THÀNH</span>
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">✓ ĐÃ HOÀN THÀNH</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
                       examCategoryTab === "completed"
                         ? "bg-white text-emerald-800"
@@ -382,12 +382,12 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                     onClick={() => setExamCategoryTab("overdue")}
                     className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer ${
                       examCategoryTab === "overdue"
-                        ? "bg-rose-600 text-white shadow-md shadow-rose-200/60 ring-1 ring-rose-500 scale-[1.01]"
+                        ? "bg-rose-500 text-white shadow-md shadow-rose-200/50 ring-1 ring-rose-400 scale-[1.01]"
                         : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
                     }`}
                   >
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span className="truncate">QUÁ HẠN</span>
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span className="truncate">⏰ QUÁ HẠN</span>
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
                       examCategoryTab === "overdue"
                         ? "bg-white text-rose-800"
@@ -480,9 +480,9 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                                 )}
 
                                 {examCategoryTab === "overdue" && (
-                                  <span className="bg-rose-100 border border-rose-300 text-rose-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
-                                    <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                                    Trạng thái: Quá hạn
+                                  <span className="bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold px-3 py-1 rounded-xl flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-rose-500" />
+                                    Cần hoàn thành (Quá hạn)
                                   </span>
                                 )}
 
@@ -626,12 +626,12 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
               {/* LEADERBOARD CARD */}
               <div
                 id="student-leaderboard-card"
-                className="bg-gradient-to-br from-amber-500/10 via-amber-400/5 to-orange-500/10 border-2 border-amber-300/80 rounded-[32px] p-5 sm:p-6 shadow-sm space-y-5 relative overflow-hidden"
+                className="bg-white border border-amber-200/70 rounded-[28px] p-5 sm:p-6 shadow-xs space-y-4 relative overflow-hidden"
               >
-                <div className="border-b border-amber-200/60 pb-3.5 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-                    <div className="bg-gradient-to-tr from-amber-500 to-amber-400 text-white p-2 sm:p-2.5 rounded-2xl shadow-md shadow-amber-200 shrink-0">
-                      <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-amber-950 fill-amber-300" />
+                <div className="border-b border-amber-100 pb-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="bg-amber-100 text-amber-700 p-2 rounded-xl shrink-0">
+                      <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 fill-amber-300" />
                     </div>
                     <div className="min-w-0 flex-1 overflow-visible">
                       <h2 className="font-black text-slate-900 text-[12px] min-[380px]:text-[13px] sm:text-sm md:text-base flex items-center gap-1 sm:gap-1.5 tracking-tight whitespace-nowrap overflow-visible">
@@ -643,17 +643,17 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                       </span>
                     </div>
                   </div>
-                  <span className="bg-amber-200/80 text-amber-950 text-[10px] font-black px-2 sm:px-2.5 py-1 rounded-xl shrink-0 whitespace-nowrap">
+                  <span className="bg-amber-50 text-amber-900 text-[10px] font-black px-2.5 py-1 rounded-xl shrink-0 whitespace-nowrap border border-amber-200/60">
                     TOP 10
                   </span>
                 </div>
 
                 {leaderboard.length === 0 ? (
-                  <div className="bg-white/90 backdrop-blur-xs border border-amber-200/70 rounded-2xl p-5 text-center space-y-2">
-                    <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+                  <div className="bg-amber-50/40 border border-amber-100 rounded-2xl p-5 text-center space-y-2">
+                    <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
                       <Trophy className="w-5 h-5 text-amber-500" />
                     </div>
-                    <p className="text-xs font-bold text-slate-700 leading-relaxed">
+                    <p className="text-xs font-bold text-slate-600 leading-relaxed">
                       <span className="whitespace-nowrap font-black">🏆 Bảng vàng thành tích</span> sẽ được cập nhật sau khi các bạn hoàn thành bài kiểm tra đầu tiên!
                     </p>
                   </div>
