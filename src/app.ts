@@ -418,7 +418,7 @@ async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayM
 
   const { client: aiClient } = geminiObj;
   // Model hierarchy: working active models on Gemini API
-  const modelOrder = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-flash-latest"];
+  const modelOrder = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.5-flash-latest"];
   options.model = modelOrder[0];
 
   let lastError: any = null;
