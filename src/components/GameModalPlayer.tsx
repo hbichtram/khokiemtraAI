@@ -4,7 +4,7 @@ import { formatGameEmbedUrl } from "../lib/gameUtils";
 import BuiltInGamePlayer from "./BuiltInGamePlayer";
 import { fsRecordGameCompletion } from "../lib/firestoreData";
 import { 
-  Gamepad2, X, ExternalLink, RefreshCw, AlertCircle, Sparkles, Trophy, CheckCircle2
+  Gamepad2, X, ExternalLink, RefreshCw, AlertCircle, Sparkles, Trophy, CheckCircle2, Clock
 } from "lucide-react";
 
 interface GameModalPlayerProps {
@@ -19,6 +19,11 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
   const [iframeError, setIframeError] = useState(false);
   const [claimedReward, setClaimedReward] = useState<{ pointsEarned: number; totalPoints: number } | null>(null);
   const [claiming, setClaiming] = useState(false);
+
+  // Game completion state & verification mechanisms
+  const [isGameCompleted, setIsGameCompleted] = useState(false);
+  const [countdown, setCountdown] = useState(60);
+  const [incompleteWarning, setIncompleteWarning] = useState<string | null>(null);
 
   const formatted = formatGameEmbedUrl(game.gameUrl);
 
@@ -40,6 +45,90 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
     }
   }, [formatted]);
 
+  // CÁCH 1 (Ưu tiên): Lắng nghe sự kiện window.addEventListener('message', ...) từ game iframe
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = event.data;
+        if (!data) return;
+
+        let completedSignal = false;
+
+        // Xử lý dữ liệu dạng chuỗi (e.g. "game_completed", "game_over", "finish", "win")
+        if (typeof data === "string") {
+          const lower = data.toLowerCase();
+          if (
+            lower.includes("complete") ||
+            lower.includes("finish") ||
+            lower.includes("game_over") ||
+            lower.includes("gameover") ||
+            lower.includes("win") ||
+            lower.includes("victory") ||
+            lower.includes("hoan_thanh")
+          ) {
+            completedSignal = true;
+          }
+        } 
+        // Xử lý dữ liệu dạng đối tượng (e.g. { type: "game_completed", isFinished: true, ... })
+        else if (typeof data === "object") {
+          const typeStr = String(data.type || data.event || data.action || data.status || data.message || "").toLowerCase();
+          if (
+            typeStr.includes("complete") ||
+            typeStr.includes("finish") ||
+            typeStr.includes("game_over") ||
+            typeStr.includes("gameover") ||
+            typeStr.includes("win") ||
+            data.completed === true ||
+            data.isCompleted === true ||
+            data.isFinished === true ||
+            data.gameOver === true
+          ) {
+            completedSignal = true;
+          }
+        }
+
+        if (completedSignal) {
+          console.log("[GAME] Nhận tín hiệu postMessage hoàn thành từ game iframe:", data);
+          setIsGameCompleted(true);
+          setCountdown(0);
+        }
+      } catch (err) {
+        // Bỏ qua lỗi cross-origin từ các sự kiện không xác định
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, []);
+
+  // CÁCH 2 (Dự phòng): Đếm ngược thời gian và tự động bật isGameCompleted sau 60 giây
+  useEffect(() => {
+    if (isGameCompleted) return;
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setIsGameCompleted(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isGameCompleted]);
+
+  // Tự động tắt cảnh báo toast sau 4 giây
+  useEffect(() => {
+    if (incompleteWarning) {
+      const t = setTimeout(() => setIncompleteWarning(null), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [incompleteWarning]);
+
   const handleIframeLoad = () => {
     setIframeLoading(false);
     setIframeError(false);
@@ -56,6 +145,19 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
 
   const handleClaimReward = async () => {
     if (!user || user.role !== "student" || claiming) return;
+
+    // Kiểm tra trạng thái hoàn thành: Nếu chưa hoàn thành thì chặn và thông báo
+    if (!isGameCompleted) {
+      const message = "Bạn chưa hoàn thành trò chơi! Hãy chơi xong để nhận điểm nhé.";
+      setIncompleteWarning(message);
+      try {
+        alert(message);
+      } catch (e) {
+        // Fallback UI toast
+      }
+      return;
+    }
+
     setClaiming(true);
 
     const studentId = user.id || user.studentCode || "student-default";
@@ -204,10 +306,34 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
                     <button
                       onClick={handleClaimReward}
                       disabled={claiming}
-                      className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm px-6 py-3.5 rounded-2xl border border-emerald-400 shadow-xl transition-all cursor-pointer"
+                      className={`inline-flex items-center gap-2 font-black text-sm px-6 py-3.5 rounded-2xl border shadow-xl transition-all cursor-pointer ${
+                        isGameCompleted
+                          ? "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400 animate-pulse ring-2 ring-emerald-400/40"
+                          : "bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700 hover:border-amber-400/50"
+                      }`}
+                      title={
+                        isGameCompleted
+                          ? "Nhấn để nhận thưởng ngay!"
+                          : `Chưa hoàn thành trò chơi (Tự động mở sau ${countdown}s)`
+                      }
                     >
-                      <Sparkles className="w-4 h-4 text-amber-300" />
-                      {claiming ? "Đang lưu điểm..." : "Xác nhận hoàn thành & Nhận +20đ"}
+                      {isGameCompleted ? (
+                        <Sparkles className="w-4 h-4 text-amber-300" />
+                      ) : (
+                        <Clock className="w-4 h-4 text-amber-400" />
+                      )}
+                      {claiming ? (
+                        "Đang lưu điểm..."
+                      ) : isGameCompleted ? (
+                        "Xác nhận hoàn thành & Nhận +20đ"
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <span>Xác nhận hoàn thành & Nhận +20đ</span>
+                          <span className="bg-slate-950 text-amber-400 text-xs px-2 py-0.5 rounded-lg font-mono border border-slate-700">
+                            {countdown}s
+                          </span>
+                        </span>
+                      )}
                     </button>
                   )}
                 </div>
@@ -227,6 +353,21 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
               )}
 
               <div className="flex-1 relative">
+                {/* Alert Toast Notification when student clicks before completing */}
+                {incompleteWarning && (
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-rose-950/95 border-2 border-rose-500 text-white px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold shadow-2xl backdrop-blur-md flex items-center gap-3 animate-in fade-in slide-in-from-top-3 duration-200 max-w-md w-11/12 mx-auto text-center">
+                    <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 animate-bounce" />
+                    <span className="flex-1 text-left">{incompleteWarning}</span>
+                    <button
+                      onClick={() => setIncompleteWarning(null)}
+                      className="p-1 hover:bg-rose-900 rounded-lg text-rose-300 hover:text-white cursor-pointer"
+                      title="Đóng thông báo"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
                 {formatted.isHtmlDoc ? (
                   <iframe
                     srcDoc={formatted.embedUrl}
@@ -273,7 +414,9 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
                 <div className="flex items-center gap-2 text-slate-300">
                   <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>
-                    Chơi xong trò chơi? Nhấn nút bên cạnh để cộng điểm thưởng vào tài khoản của em!
+                    {isGameCompleted
+                      ? "🎉 Tuyệt vời! Em đã hoàn thành trò chơi. Hãy nhấn nút bên cạnh để cộng điểm nhé!"
+                      : `Chơi xong trò chơi để nhận thưởng (đếm ngược tự động mở sau ${countdown}s)`}
                   </span>
                 </div>
 
@@ -286,10 +429,34 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
                   <button
                     onClick={handleClaimReward}
                     disabled={claiming}
-                    className="inline-flex items-center gap-1.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black px-5 py-2 rounded-xl shadow-lg transition-all cursor-pointer"
+                    className={`inline-flex items-center gap-2 font-black px-5 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer ${
+                      isGameCompleted
+                        ? "bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 shadow-amber-400/20 active:scale-95 animate-pulse"
+                        : "bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 hover:border-amber-400/50"
+                    }`}
+                    title={
+                      isGameCompleted
+                        ? "Nhấn để nhận điểm thưởng ngay!"
+                        : `Bạn chưa hoàn thành trò chơi! Hãy chơi xong để nhận điểm nhé (hoặc nhận sau ${countdown}s).`
+                    }
                   >
-                    <Trophy className="w-4 h-4" />
-                    {claiming ? "Đang tính điểm..." : "Hoàn thành & Nhận +20đ thưởng"}
+                    {isGameCompleted ? (
+                      <Trophy className="w-4 h-4 text-slate-950" />
+                    ) : (
+                      <Clock className="w-4 h-4 text-amber-400" />
+                    )}
+                    {claiming ? (
+                      "Đang tính điểm..."
+                    ) : isGameCompleted ? (
+                      "Hoàn thành & Nhận +20đ thưởng"
+                    ) : (
+                      <span className="flex items-center gap-1.5">
+                        <span>Hoàn thành & Nhận thưởng</span>
+                        <span className="bg-slate-950 text-amber-400 text-[11px] px-2 py-0.5 rounded-md font-mono border border-slate-700">
+                          {countdown}s
+                        </span>
+                      </span>
+                    )}
                   </button>
                 ) : null}
               </div>
