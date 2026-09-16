@@ -45,6 +45,7 @@ interface Student {
   name: string;
   studentCode: string;
   classId: string;
+  password?: string;
 }
 
 interface Class {
@@ -588,9 +589,9 @@ app.post("/api/auth/teacher-login", (req, res) => {
   });
 });
 
-// Student Login by Code
+// Student Login by Code & Password
 app.post("/api/auth/student-login", (req, res) => {
-  const { studentCode } = req.body;
+  const { studentCode, password } = req.body;
   if (!studentCode) {
     return res.status(400).json({ error: "Vui lòng nhập Mã học sinh." });
   }
@@ -611,6 +612,35 @@ app.post("/api/auth/student-login", (req, res) => {
     return res.status(404).json({ error: "Không tìm thấy học sinh có mã này. Vui lòng kiểm tra lại!" });
   }
 
+  // Check if student already has a password set
+  if (!foundStudent.password || foundStudent.password.trim() === "") {
+    return res.json({
+      requiresPasswordSetup: true,
+      student: {
+        id: foundStudent.id,
+        name: foundStudent.name,
+        studentCode: foundStudent.studentCode,
+        role: "student",
+        classId: foundClass.id,
+        className: foundClass.name
+      }
+    });
+  }
+
+  // Student has a password - verify it
+  if (!password || !password.trim()) {
+    return res.status(400).json({
+      error: "Vui lòng nhập mật khẩu để đăng nhập.",
+      requiresPassword: true
+    });
+  }
+
+  if (foundStudent.password.trim() !== password.trim()) {
+    return res.status(401).json({
+      error: "Mật khẩu không chính xác. Em hãy kiểm tra lại hoặc nhờ thầy/cô đặt lại mật khẩu nhé!"
+    });
+  }
+
   res.json({
     id: foundStudent.id,
     name: foundStudent.name,
@@ -619,6 +649,80 @@ app.post("/api/auth/student-login", (req, res) => {
     classId: foundClass.id,
     className: foundClass.name
   });
+});
+
+// Set Student Password (First-time setup)
+app.post("/api/student/set-password", (req, res) => {
+  const { studentId, studentCode, password } = req.body;
+  if (!password || !password.trim()) {
+    return res.status(400).json({ error: "Mật khẩu không được để trống." });
+  }
+
+  let foundStudent: Student | null = null;
+  let foundClass: Class | null = null;
+
+  for (const cls of db.classes) {
+    const std = cls.students.find(
+      (s) => (studentId && s.id === studentId) || (studentCode && s.studentCode.toUpperCase() === studentCode.toUpperCase())
+    );
+    if (std) {
+      std.password = password.trim();
+      foundStudent = std;
+      foundClass = cls;
+      break;
+    }
+  }
+
+  if (!foundStudent || !foundClass) {
+    return res.status(404).json({ error: "Không tìm thấy học sinh để tạo mật khẩu." });
+  }
+
+  saveDb();
+
+  res.json({
+    success: true,
+    student: {
+      id: foundStudent.id,
+      name: foundStudent.name,
+      studentCode: foundStudent.studentCode,
+      role: "student",
+      classId: foundClass.id,
+      className: foundClass.name
+    }
+  });
+});
+
+// Reset Student Password (by Teacher)
+app.post("/api/student/reset-password", (req, res) => {
+  const { classId, studentId } = req.body;
+  if (!studentId) {
+    return res.status(400).json({ error: "Thiếu thông tin mã học sinh cần khôi phục." });
+  }
+
+  let found = false;
+  for (const cls of db.classes) {
+    if (classId && cls.id !== classId) continue;
+    const std = cls.students.find((s) => s.id === studentId);
+    if (std) {
+      delete std.password;
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    for (const cls of db.classes) {
+      const std = cls.students.find((s) => s.id === studentId);
+      if (std) {
+        delete std.password;
+        found = true;
+        break;
+      }
+    }
+  }
+
+  saveDb();
+  res.json({ success: true, message: "Đã khôi phục mật khẩu học sinh thành công!" });
 });
 
 // GET general overview stats for Teacher Dashboard

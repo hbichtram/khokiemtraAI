@@ -4,7 +4,7 @@ import {
   Users, Plus, Trash2, Edit2, Copy, Search, Check, 
   ChevronRight, AlertCircle, RefreshCw, X, ArrowLeft,
   FileSpreadsheet, Download, Upload, Info, AlertTriangle, 
-  CheckCircle2, ShieldCheck, FileText
+  CheckCircle2, ShieldCheck, FileText, KeyRound
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
@@ -15,7 +15,8 @@ import {
   fsAddStudent,
   fsAddStudentsBulk,
   fsUpdateStudent,
-  fsDeleteStudent
+  fsDeleteStudent,
+  fsResetStudentPassword
 } from "../lib/firestoreData";
 
 export default function ClassManager() {
@@ -57,6 +58,10 @@ export default function ClassManager() {
   // Delete confirmation modal states
   const [classToDelete, setClassToDelete] = useState<{ id: string; name: string } | null>(null);
   const [studentToDelete, setStudentToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  // Reset password modal state
+  const [studentToResetPassword, setStudentToResetPassword] = useState<{ id: string; name: string; studentCode: string } | null>(null);
+  const [resettingPassword, setResettingPassword] = useState(false);
 
   const handleDownloadTemplate = () => {
     const templateData = [
@@ -530,6 +535,34 @@ export default function ClassManager() {
     }
   };
 
+  const handleConfirmResetPassword = async () => {
+    if (!selectedClass || !studentToResetPassword) return;
+    const { id: studentId, name } = studentToResetPassword;
+
+    setResettingPassword(true);
+    setError(null);
+    try {
+      await fsResetStudentPassword(selectedClass.id, studentId);
+
+      // Notify local API server in background
+      fetch("/api/student/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classId: selectedClass.id, studentId })
+      }).catch((e) => console.warn("Notice API reset password:", e));
+
+      setSuccess(`Đã khôi phục mật khẩu cho học sinh "${name}" thành công! Học sinh sẽ được tạo lại mật khẩu mới ở lần đăng nhập tiếp theo.`);
+      setTimeout(() => setSuccess(null), 4000);
+      setStudentToResetPassword(null);
+      await fetchClasses();
+    } catch (err: any) {
+      console.error("Reset password error:", err);
+      setError(err.message || "Đã xảy ra lỗi khi khôi phục mật khẩu");
+    } finally {
+      setResettingPassword(false);
+    }
+  };
+
   const copyToClipboard = (code: string) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
@@ -860,7 +893,7 @@ export default function ClassManager() {
                       <th className="py-4 px-5 w-16">STT</th>
                       <th className="py-4 px-5">Họ và tên</th>
                       <th className="py-4 px-5">Mã đăng nhập của học sinh</th>
-                      <th className="py-4 px-5 text-right w-32">Thao tác</th>
+                      <th className="py-4 px-5 text-right w-36 sm:w-40">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-xs">
@@ -886,6 +919,13 @@ export default function ClassManager() {
                         </td>
                         <td className="py-4 px-5 text-right">
                           <div className="flex justify-end gap-1">
+                            <button
+                              onClick={() => setStudentToResetPassword({ id: student.id, name: student.name, studentCode: student.studentCode })}
+                              className="p-2 bg-slate-50 hover:bg-amber-50 hover:text-amber-600 text-slate-500 rounded-xl transition-all cursor-pointer border border-transparent hover:border-amber-200"
+                              title="Khôi phục mật khẩu (Học sinh sẽ tạo lại mật khẩu mới ở lần đăng nhập tiếp theo)"
+                            >
+                              <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                            </button>
                             <button
                               onClick={() => {
                                 setEditingStudent(student);
@@ -1365,6 +1405,61 @@ export default function ClassManager() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Confirmation Modal */}
+      {studentToResetPassword && (
+        <div id="modal-reset-password-confirmation" className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl animate-scaleUp border border-slate-100 p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-lg">Khôi phục mật khẩu</h3>
+                <p className="text-xs text-slate-500 font-medium">Đặt lại quyền tạo mật khẩu cho học sinh</p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50/70 border border-amber-200/60 rounded-2xl p-4 text-xs text-amber-950 space-y-2">
+              <p className="leading-relaxed">
+                Thầy/Cô có chắc chắn muốn khôi phục mật khẩu cho học sinh <strong className="font-black text-slate-900 text-sm block mt-0.5">{studentToResetPassword.name}</strong> (Mã: <span className="font-mono font-bold text-amber-900">{studentToResetPassword.studentCode}</span>)?
+              </p>
+              <p className="text-amber-800 font-medium text-[11px] leading-relaxed pt-1 border-t border-amber-200/50">
+                Học sinh sẽ được tạo lại mật khẩu mới ở lần đăng nhập tiếp theo.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setStudentToResetPassword(null)}
+                disabled={resettingPassword}
+                className="flex-1 border border-slate-200 hover:bg-slate-50 text-slate-600 font-bold py-3 rounded-xl transition-all cursor-pointer disabled:opacity-60"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmResetPassword}
+                disabled={resettingPassword}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3 rounded-xl shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+              >
+                {resettingPassword ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Đang xử lý...</span>
+                  </>
+                ) : (
+                  <>
+                    <KeyRound className="w-4 h-4" />
+                    <span>Xác nhận khôi phục</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

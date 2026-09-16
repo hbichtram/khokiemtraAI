@@ -5,6 +5,8 @@ export interface Student {
   classId: string;
   teacherId?: string;
   createdAt?: string;
+  password?: string;
+  isActive?: boolean;
 }
 
 export interface Class {

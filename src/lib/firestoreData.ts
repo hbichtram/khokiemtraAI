@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc } from "firebase/firestore";
 import { db as firestoreDb, auth } from "../firebase";
 import { Class, Exam, Student, Assignment, Submission, Question, Game, GameRecord } from "../types";
 
@@ -475,6 +475,241 @@ export async function fsDeleteStudent(classId: string, studentId: string): Promi
   }
   data.submissions = data.submissions.filter((sub) => sub.studentId !== studentId);
   await saveAppData(data);
+}
+
+export interface StudentAuthResult {
+  success?: boolean;
+  requiresPasswordSetup?: boolean;
+  requiresPassword?: boolean;
+  error?: string;
+  student?: {
+    id: string;
+    name: string;
+    studentCode: string;
+    role: "student";
+    classId: string;
+    className: string;
+  };
+}
+
+/**
+ * Verify student credentials or determine if password setup is required
+ */
+export async function fsVerifyOrLoginStudent(studentCode: string, inputPassword?: string): Promise<StudentAuthResult> {
+  const cleanCode = studentCode.trim().toUpperCase();
+  if (!cleanCode) {
+    return { error: "Vui lòng nhập Mã học sinh." };
+  }
+
+  // 1. Check in studentCodes collection first (if exists)
+  try {
+    const studentCodesRef = collection(firestoreDb, "studentCodes");
+    const q = query(studentCodesRef, where("code", "==", cleanCode));
+    const qSnap = await getDocs(q);
+
+    let docData: any = null;
+    let docId = "";
+
+    if (!qSnap.empty) {
+      docData = qSnap.docs[0].data();
+      docId = qSnap.docs[0].id;
+    } else {
+      const directDocSnap = await getDoc(doc(firestoreDb, "studentCodes", cleanCode));
+      if (directDocSnap.exists()) {
+        docData = directDocSnap.data();
+        docId = directDocSnap.id;
+      }
+    }
+
+    if (docData) {
+      if (docData.isActive === false || docData.active === false || docData.status === "inactive") {
+        return { error: "Tài khoản hoặc mã học sinh này hiện chưa được kích hoạt. Vui lòng liên hệ giáo viên chủ nhiệm." };
+      }
+
+      const existingPwd = docData.password ? String(docData.password).trim() : "";
+      const studentObj = {
+        id: docId || docData.id || `student-${cleanCode}`,
+        name: docData.name || docData.studentName || `Học sinh ${cleanCode}`,
+        studentCode: cleanCode,
+        role: "student" as const,
+        classId: docData.classId || "class-1",
+        className: docData.className || "Lớp học"
+      };
+
+      if (!existingPwd) {
+        return { requiresPasswordSetup: true, student: studentObj };
+      }
+
+      if (!inputPassword || !inputPassword.trim()) {
+        return { error: "Vui lòng nhập mật khẩu để đăng nhập.", requiresPassword: true };
+      }
+
+      if (inputPassword.trim() !== existingPwd) {
+        return { error: "Mật khẩu không chính xác. Em hãy kiểm tra lại hoặc nhờ thầy/cô đặt lại mật khẩu nhé!" };
+      }
+
+      return { success: true, student: studentObj };
+    }
+  } catch (e) {
+    console.warn("Notice checking studentCodes collection in fsVerifyOrLoginStudent:", e);
+  }
+
+  // 2. Check in appData/main classes
+  const data = await getAppData();
+  const classes = data.classes || [];
+
+  for (const cls of classes) {
+    const classCode = (cls.classCode || "").trim().toUpperCase();
+    const std = cls.students?.find((s: any, idx: number) => {
+      if (!s.studentCode) return false;
+      const sCode = s.studentCode.trim().toUpperCase();
+      if (sCode === cleanCode) return true;
+
+      const genCode = `HS${classCode}${(idx + 1).toString().padStart(2, "0")}`;
+      if (genCode === cleanCode) return true;
+
+      if (classCode && (sCode.replace(classCode, "") === cleanCode || cleanCode.replace(classCode, "") === sCode)) {
+        return true;
+      }
+      return false;
+    });
+
+    if (std) {
+      if (std.isActive === false || (std as any).active === false || (std as any).status === "inactive") {
+        return { error: "Tài khoản hoặc mã học sinh này hiện chưa được kích hoạt. Vui lòng liên hệ giáo viên chủ nhiệm." };
+      }
+
+      const existingPwd = std.password ? String(std.password).trim() : "";
+      const studentObj = {
+        id: std.id,
+        name: std.name,
+        studentCode: std.studentCode || cleanCode,
+        role: "student" as const,
+        classId: cls.id,
+        className: cls.name
+      };
+
+      if (!existingPwd) {
+        return { requiresPasswordSetup: true, student: studentObj };
+      }
+
+      if (!inputPassword || !inputPassword.trim()) {
+        return { error: "Vui lòng nhập mật khẩu để đăng nhập.", requiresPassword: true };
+      }
+
+      if (inputPassword.trim() !== existingPwd) {
+        return { error: "Mật khẩu không chính xác. Em hãy kiểm tra lại hoặc nhờ thầy/cô đặt lại mật khẩu nhé!" };
+      }
+
+      return { success: true, student: studentObj };
+    }
+  }
+
+  return { error: "Mã học sinh chưa chính xác hoặc không tồn tại trong hệ thống. Vui lòng kiểm tra lại mã được thầy/cô cung cấp." };
+}
+
+/**
+ * Save new student password on first-time setup
+ */
+export async function fsSetStudentPassword(studentId: string, studentCode: string, newPassword: string) {
+  const cleanCode = studentCode.trim().toUpperCase();
+  const trimmedPassword = newPassword.trim();
+
+  if (!trimmedPassword) {
+    throw new Error("Mật khẩu không được để trống.");
+  }
+
+  // 1. Update in appData/main
+  const data = await getAppData();
+  let updatedStudent: any = null;
+
+  for (const cls of data.classes || []) {
+    const std = cls.students?.find((s) => s.id === studentId || s.studentCode.toUpperCase() === cleanCode);
+    if (std) {
+      std.password = trimmedPassword;
+      updatedStudent = {
+        id: std.id,
+        name: std.name,
+        studentCode: std.studentCode || cleanCode,
+        role: "student" as const,
+        classId: cls.id,
+        className: cls.name
+      };
+      break;
+    }
+  }
+
+  await saveAppData(data);
+
+  // 2. Also sync to studentCodes collection if present
+  try {
+    const directDocRef = doc(firestoreDb, "studentCodes", cleanCode);
+    const directDocSnap = await getDoc(directDocRef);
+    if (directDocSnap.exists()) {
+      await updateDoc(directDocRef, { password: trimmedPassword });
+    } else {
+      const studentCodesRef = collection(firestoreDb, "studentCodes");
+      const q = query(studentCodesRef, where("code", "==", cleanCode));
+      const qSnap = await getDocs(q);
+      if (!qSnap.empty) {
+        await updateDoc(qSnap.docs[0].ref, { password: trimmedPassword });
+      }
+    }
+  } catch (err) {
+    console.warn("Notice syncing password to studentCodes collection:", err);
+  }
+
+  return updatedStudent;
+}
+
+/**
+ * Reset student password (by Teacher)
+ */
+export async function fsResetStudentPassword(classId: string, studentId: string): Promise<void> {
+  const data = await getAppData();
+  const cls = data.classes?.find((c) => c.id === classId);
+  let studentCodeToReset = "";
+
+  if (cls) {
+    const std = cls.students?.find((s) => s.id === studentId);
+    if (std) {
+      delete std.password;
+      studentCodeToReset = std.studentCode;
+    }
+  } else {
+    // Search in all classes if classId is not matched
+    for (const c of data.classes || []) {
+      const std = c.students?.find((s) => s.id === studentId);
+      if (std) {
+        delete std.password;
+        studentCodeToReset = std.studentCode;
+        break;
+      }
+    }
+  }
+
+  await saveAppData(data);
+
+  // Also clear in studentCodes collection if present
+  if (studentCodeToReset) {
+    try {
+      const cleanCode = studentCodeToReset.trim().toUpperCase();
+      const directDocRef = doc(firestoreDb, "studentCodes", cleanCode);
+      const directDocSnap = await getDoc(directDocRef);
+      if (directDocSnap.exists()) {
+        await updateDoc(directDocRef, { password: "" });
+      } else {
+        const studentCodesRef = collection(firestoreDb, "studentCodes");
+        const q = query(studentCodesRef, where("code", "==", cleanCode));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          await updateDoc(qSnap.docs[0].ref, { password: "" });
+        }
+      }
+    } catch (err) {
+      console.warn("Notice clearing password in studentCodes collection:", err);
+    }
+  }
 }
 
 // ==========================================

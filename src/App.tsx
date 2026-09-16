@@ -5,7 +5,8 @@ import StudentDashboard from "./components/StudentDashboard";
 import { 
   Sparkles, GraduationCap, Users,
   ArrowRight, AlertCircle, RefreshCw, Smile,
-  Loader2, Copy, Check, Globe, ShieldAlert
+  Loader2, Copy, Check, Globe, ShieldAlert,
+  Lock, Eye, EyeOff, KeyRound, ShieldCheck
 } from "lucide-react";
 import { 
   GoogleAuthProvider,
@@ -23,7 +24,7 @@ import {
   where 
 } from "firebase/firestore";
 import { auth, db as firestoreDb, firebaseConfig } from "./firebase";
-import { DEFAULT_SEED_DATA } from "./lib/firestoreData";
+import { DEFAULT_SEED_DATA, fsVerifyOrLoginStudent, fsSetStudentPassword } from "./lib/firestoreData";
 
 interface AuthErrorState {
   title?: string;
@@ -61,6 +62,17 @@ export default function App() {
   
   // Student Login State
   const [studentCode, setStudentCode] = useState("");
+  const [studentPassword, setStudentPassword] = useState("");
+  const [showStudentPassword, setShowStudentPassword] = useState(false);
+
+  // Student First-time Password Setup State
+  const [setupStudentInfo, setSetupStudentInfo] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupError, setSetupError] = useState<string | null>(null);
+
   const [classesList, setClassesList] = useState<any[]>([]);
 
   const [appLoading, setAppLoading] = useState(true);
@@ -344,114 +356,114 @@ export default function App() {
     setAuthError(null);
 
     try {
-      let foundStudent: any = null;
-      let isInactive = false;
+      const result = await fsVerifyOrLoginStudent(cleanCode, studentPassword);
 
-      // 1. Check studentCodes collection in Firestore
-      try {
-        const studentCodesRef = collection(firestoreDb, "studentCodes");
-        const q = query(studentCodesRef, where("code", "==", cleanCode));
-        const qSnap = await getDocs(q);
-
-        if (!qSnap.empty) {
-          const docData: any = qSnap.docs[0].data();
-          if (docData.isActive === false || docData.active === false || docData.status === "inactive") {
-            isInactive = true;
-          } else {
-            foundStudent = {
-              id: qSnap.docs[0].id || docData.id || `student-${cleanCode}`,
-              name: docData.name || docData.studentName || `Học sinh ${cleanCode}`,
-              studentCode: cleanCode,
-              role: "student",
-              classId: docData.classId || "class-1",
-              className: docData.className || "Lớp học"
-            };
-          }
-        } else {
-          // Also check by document ID in studentCodes
-          const docRef = doc(firestoreDb, "studentCodes", cleanCode);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            const docData: any = docSnap.data();
-            if (docData.isActive === false || docData.active === false || docData.status === "inactive") {
-              isInactive = true;
-            } else {
-              foundStudent = {
-                id: docSnap.id,
-                name: docData.name || docData.studentName || `Học sinh ${cleanCode}`,
-                studentCode: cleanCode,
-                role: "student",
-                classId: docData.classId || "class-1",
-                className: docData.className || "Lớp học"
-              };
-            }
-          }
-        }
-      } catch (err) {
-        console.warn("Notice checking studentCodes collection:", err);
-      }
-
-      // 2. If not found in studentCodes collection, search in appData/main classes
-      if (!foundStudent && !isInactive) {
-        const appDataSnap = await getDoc(doc(firestoreDb, "appData", "main"));
-        if (appDataSnap.exists()) {
-          const appData = appDataSnap.data();
-          const classes = appData.classes || [];
-
-          for (const cls of classes) {
-            const classCode = (cls.classCode || "").trim().toUpperCase();
-            const std = cls.students?.find((s: any, idx: number) => {
-              if (!s.studentCode) return false;
-              const sCode = s.studentCode.trim().toUpperCase();
-              if (sCode === cleanCode) return true;
-
-              // Generated format rule: HS + classCode + STT (e.g., HSTH5C7701)
-              const genCode = `HS${classCode}${(idx + 1).toString().padStart(2, "0")}`;
-              if (genCode === cleanCode) return true;
-
-              // Loose match for legacy or short codes (e.g., HS5C01 vs HSTH5C7701)
-              if (classCode && (sCode.replace(classCode, "") === cleanCode || cleanCode.replace(classCode, "") === sCode)) {
-                return true;
-              }
-
-              return false;
-            });
-            if (std) {
-              if (std.isActive === false || std.active === false || std.status === "inactive") {
-                isInactive = true;
-              } else {
-                foundStudent = {
-                  id: std.id,
-                  name: std.name,
-                  studentCode: std.studentCode || cleanCode,
-                  role: "student",
-                  classId: cls.id,
-                  className: cls.name
-                };
-              }
-              break;
-            }
-          }
-        }
-      }
-
-      if (isInactive) {
-        setAuthError({ message: "Tài khoản hoặc mã học sinh này hiện chưa được kích hoạt. Vui lòng liên hệ giáo viên chủ nhiệm." });
+      if (result.error) {
+        setAuthError({ message: result.error });
         return;
       }
 
-      if (!foundStudent) {
-        setAuthError({ message: "Mã học sinh chưa chính xác hoặc không tồn tại trong hệ thống. Vui lòng kiểm tra lại mã được thầy/cô cung cấp." });
+      if (result.requiresPasswordSetup && result.student) {
+        setSetupStudentInfo(result.student);
+        setNewPassword("");
+        setConfirmPassword("");
+        setSetupError(null);
         return;
       }
 
-      setUser(foundStudent);
-      localStorage.setItem("ai_smart_test_user", JSON.stringify(foundStudent));
+      if (result.success && result.student) {
+        setUser(result.student);
+        localStorage.setItem("ai_smart_test_user", JSON.stringify(result.student));
+        return;
+      }
+
+      setAuthError({ message: "Không tìm thấy học sinh có mã này. Vui lòng kiểm tra lại!" });
     } catch (err: any) {
-      console.error("Student login error:", err);
+      console.error("Student login error via Firestore, trying fallback API:", err);
+      // Fallback to local server API if Firestore query encountered an issue
+      try {
+        const resp = await fetch("/api/auth/student-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ studentCode: cleanCode, password: studentPassword })
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          setAuthError({ message: data.error || "Mã học sinh hoặc mật khẩu chưa đúng." });
+          return;
+        }
+        if (data.requiresPasswordSetup && data.student) {
+          setSetupStudentInfo(data.student);
+          setNewPassword("");
+          setConfirmPassword("");
+          setSetupError(null);
+          return;
+        }
+        if (data.id) {
+          setUser(data);
+          localStorage.setItem("ai_smart_test_user", JSON.stringify(data));
+          return;
+        }
+      } catch (apiErr) {
+        console.error("Fallback API login error:", apiErr);
+      }
       setAuthError({ message: "Không thể kết nối đến hệ thống. Vui lòng thử lại sau." });
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  const handleSaveNewPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!setupStudentInfo) return;
+
+    const trimmedNew = newPassword.trim();
+    const trimmedConfirm = confirmPassword.trim();
+
+    if (!trimmedNew) {
+      setSetupError("Vui lòng nhập mật khẩu mới.");
+      return;
+    }
+    if (trimmedNew.length < 3) {
+      setSetupError("Mật khẩu nên có ít nhất 3 ký tự để đảm bảo an toàn.");
+      return;
+    }
+    if (trimmedNew !== trimmedConfirm) {
+      setSetupError("Mật khẩu xác nhận không khớp. Vui lòng nhập lại!");
+      return;
+    }
+
+    setSetupLoading(true);
+    setSetupError(null);
+
+    try {
+      const updatedStudent = await fsSetStudentPassword(
+        setupStudentInfo.id,
+        setupStudentInfo.studentCode,
+        trimmedNew
+      );
+
+      // Sync with backend API in background
+      fetch("/api/student/set-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: setupStudentInfo.id,
+          studentCode: setupStudentInfo.studentCode,
+          password: trimmedNew
+        })
+      }).catch((e) => console.warn("Background API sync notice:", e));
+
+      const finalUser = updatedStudent || setupStudentInfo;
+      setUser(finalUser);
+      localStorage.setItem("ai_smart_test_user", JSON.stringify(finalUser));
+      setSetupStudentInfo(null);
+      setStudentPassword("");
+    } catch (err: any) {
+      console.error("Set password error:", err);
+      setSetupError(err.message || "Đã xảy ra lỗi khi lưu mật khẩu. Vui lòng thử lại!");
+    } finally {
+      setSetupLoading(false);
     }
   };
 
@@ -473,6 +485,8 @@ export default function App() {
     setUser(null);
     localStorage.removeItem("ai_smart_test_user");
     setStudentCode("");
+    setStudentPassword("");
+    setSetupStudentInfo(null);
     setAuthError(null);
   };
 
@@ -661,8 +675,38 @@ export default function App() {
                   className="w-full h-11 sm:h-12 bg-slate-50/80 hover:bg-slate-50 focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-amber-500 rounded-xl sm:rounded-2xl pl-10 pr-3.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-amber-500/15 transition-all font-bold uppercase tracking-wider"
                 />
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label htmlFor="input-student-password" className="block text-[10px] sm:text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  MẬT KHẨU
+                </label>
+                <span className="text-[10px] text-amber-600 font-semibold">
+                  (Bỏ trống nếu là lần đầu)
+                </span>
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <input
+                  id="input-student-password"
+                  type={showStudentPassword ? "text" : "password"}
+                  value={studentPassword}
+                  onChange={(e) => setStudentPassword(e.target.value)}
+                  placeholder="Nhập mật khẩu của em..."
+                  className="w-full h-11 sm:h-12 bg-slate-50/80 hover:bg-slate-50 focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-amber-500 rounded-xl sm:rounded-2xl pl-10 pr-10 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-amber-500/15 transition-all font-medium"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowStudentPassword(!showStudentPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition-colors"
+                  title={showStudentPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                >
+                  {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
               <p className="text-[10px] sm:text-[11px] text-slate-400 font-medium pt-0.5 pl-0.5">
-                Nhập mã học sinh do thầy/cô chủ nhiệm cung cấp.
+                Lần đầu: Chỉ cần nhập Mã học sinh rồi bấm Đăng nhập để tự tạo mật khẩu.
               </p>
             </div>
 
@@ -675,7 +719,7 @@ export default function App() {
               {loginLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
-                  <span>Đang kiểm tra mã...</span>
+                  <span>Đang kiểm tra...</span>
                 </>
               ) : (
                 <>
@@ -687,6 +731,109 @@ export default function App() {
           </form>
         )}
       </div>
+
+      {/* First-time Password Setup Modal for Students */}
+      {setupStudentInfo && (
+        <div id="modal-first-time-password-setup" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
+          <div className="bg-white border border-slate-200/90 rounded-[28px] w-full max-w-[420px] p-6 sm:p-7 shadow-2xl space-y-4 animate-scaleUp">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-sm shadow-amber-500/10">
+                <KeyRound className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Tạo Mật Khẩu Lần Đầu</h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  Chào mừng <strong className="text-slate-800 font-black">{setupStudentInfo.name}</strong>!
+                </p>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  Đây là lần đầu tiên em đăng nhập. Em hãy tự tạo mật khẩu để bảo vệ tài khoản và kết quả học tập của mình nhé!
+                </p>
+              </div>
+              <div className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl text-[11px] font-medium text-slate-600 inline-block">
+                Lớp: <strong className="text-slate-800">{setupStudentInfo.className}</strong> • Mã: <span className="font-mono font-bold text-indigo-600">{setupStudentInfo.studentCode}</span>
+              </div>
+            </div>
+
+            {setupError && (
+              <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl flex items-start gap-2 text-rose-900 text-xs">
+                <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                <span className="font-medium">{setupError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveNewPassword} className="space-y-3.5">
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  MẬT KHẨU MỚI *
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    required
+                    autoFocus
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Nhập mật khẩu mới..."
+                    className="w-full h-11 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl pl-10 pr-10 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition-colors"
+                  >
+                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                  XÁC NHẬN MẬT KHẨU *
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Nhập lại mật khẩu mới..."
+                    className="w-full h-11 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl pl-10 pr-3.5 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSetupStudentInfo(null)}
+                  className="flex-1 h-11 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  Quay lại
+                </button>
+                <button
+                  type="submit"
+                  disabled={setupLoading}
+                  className="flex-1 h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-[0.99] text-white text-xs font-black rounded-xl shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+                >
+                  {setupLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Đang lưu...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Xác nhận & Vào học</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Streamlined Compact Footer */}
       <footer className="mt-2.5 sm:mt-3 text-center text-slate-400 text-[10px] sm:text-[11px] font-medium space-y-0.5 shrink-0">
