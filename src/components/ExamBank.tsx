@@ -51,10 +51,20 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
   const [viewingExam, setViewingExam] = useState<Exam | null>(null);
   const [assigningExam, setAssigningExam] = useState<Exam | null>(null);
 
-  // Edit Title state
+  // Edit Exam Info state
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
-  const [editingTitle, setEditingTitle] = useState("");
-  const [savingTitle, setSavingTitle] = useState(false);
+  const [editingExamInfo, setEditingExamInfo] = useState<{
+    title: string;
+    grade: string;
+    topic: string;
+    duration: number;
+  }>({
+    title: "",
+    grade: "Tin học 3",
+    topic: "",
+    duration: 15
+  });
+  const [savingExamInfo, setSavingExamInfo] = useState(false);
 
   // Edit Question State
   const [editingQuestionState, setEditingQuestionState] = useState<{
@@ -92,23 +102,51 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
     }
   };
 
-  const handleStartEditTitle = (exam: Exam) => {
+  const handleStartEditExamInfo = (exam: Exam) => {
     setEditingExam(exam);
-    setEditingTitle(exam.title);
+    setEditingExamInfo({
+      title: exam.title || "",
+      grade: getDisplayGrade(exam.grade, exam.title),
+      topic: exam.topic || "",
+      duration: Number(exam.duration) || 15
+    });
   };
 
-  const handleSaveExamTitle = async (e: React.FormEvent) => {
+  const handleSaveExamInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingExam) return;
 
-    const cleanTitle = editingTitle.trim();
+    const cleanTitle = editingExamInfo.title.trim();
+    const cleanTopic = editingExamInfo.topic.trim();
+    const cleanGrade = editingExamInfo.grade.trim() || "Tin học 3";
+    const durationNum = Number(editingExamInfo.duration);
+
     if (!cleanTitle) {
       setError("Tên đề thi không được để trống!");
       return;
     }
+    if (!cleanGrade) {
+      setError("Khối lớp không được để trống!");
+      return;
+    }
+    if (!cleanTopic) {
+      setError("Chủ đề chính không được để trống!");
+      return;
+    }
+    if (isNaN(durationNum) || durationNum <= 0) {
+      setError("Thời gian làm bài phải là số phút hợp lệ lớn hơn 0!");
+      return;
+    }
 
-    setSavingTitle(true);
+    setSavingExamInfo(true);
     setError(null);
+
+    const updatedData = {
+      title: cleanTitle,
+      grade: cleanGrade,
+      topic: cleanTopic,
+      duration: durationNum
+    };
 
     try {
       let updated = false;
@@ -116,40 +154,74 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
         const res = await fetch(`/api/exams/${editingExam.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: cleanTitle })
+          body: JSON.stringify(updatedData)
         });
         if (res.ok) {
           updated = true;
         }
       } catch (err) {
-        console.warn("API update exam title failed, fallback to Firestore:", err);
+        console.warn("API update exam info failed, fallback to Firestore:", err);
       }
 
       if (!updated) {
-        await fsUpdateExamTitle(editingExam.id, cleanTitle);
+        await fsUpdateExam(editingExam.id, updatedData);
+      } else {
+        // Also sync Firestore in background
+        fsUpdateExam(editingExam.id, updatedData).catch((e) =>
+          console.warn("Notice syncing exam info to Firestore:", e)
+        );
       }
 
       setExams((prevExams) =>
-        prevExams.map((ex) => (ex.id === editingExam.id ? { ...ex, title: cleanTitle } : ex))
+        prevExams.map((ex) =>
+          ex.id === editingExam.id
+            ? {
+                ...ex,
+                title: cleanTitle,
+                grade: cleanGrade,
+                topic: cleanTopic,
+                duration: durationNum
+              }
+            : ex
+        )
       );
 
       if (viewingExam && viewingExam.id === editingExam.id) {
-        setViewingExam((prev) => (prev ? { ...prev, title: cleanTitle } : null));
+        setViewingExam((prev) =>
+          prev
+            ? {
+                ...prev,
+                title: cleanTitle,
+                grade: cleanGrade,
+                topic: cleanTopic,
+                duration: durationNum
+              }
+            : null
+        );
       }
 
       if (assigningExam && assigningExam.id === editingExam.id) {
-        setAssigningExam((prev) => (prev ? { ...prev, title: cleanTitle } : null));
+        setAssigningExam((prev) =>
+          prev
+            ? {
+                ...prev,
+                title: cleanTitle,
+                grade: cleanGrade,
+                topic: cleanTopic,
+                duration: durationNum
+              }
+            : null
+        );
       }
 
-      setSuccess(`Đã cập nhật tên đề kiểm tra thành "${cleanTitle}"!`);
+      setSuccess(`Đã cập nhật thông tin đề thi "${cleanTitle}" thành công!`);
       setTimeout(() => setSuccess(null), 3500);
 
       setEditingExam(null);
-      setEditingTitle("");
     } catch (err: any) {
-      setError(err.message || "Lỗi khi cập nhật tên đề thi.");
+      setError(err.message || "Lỗi khi cập nhật thông tin đề thi.");
     } finally {
-      setSavingTitle(false);
+      setSavingExamInfo(false);
     }
   };
 
@@ -583,12 +655,12 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
                   <div className="flex items-center gap-1.5">
                     <button
                       id={`btn-edit-title-${exam.id}`}
-                      onClick={() => handleStartEditTitle(exam)}
+                      onClick={() => handleStartEditExamInfo(exam)}
                       className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100/70 p-2 rounded-xl bg-indigo-50 border border-indigo-100 transition-all cursor-pointer flex items-center gap-1 text-[11px] font-bold shadow-xs"
-                      title="Chỉnh sửa tên đề thi"
+                      title="Chỉnh sửa thông tin đề thi"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
-                      <span>Sửa tên</span>
+                      <span>Sửa thông tin</span>
                     </button>
                     <button
                       onClick={() => handleCopyExam(exam.id)}
@@ -612,9 +684,9 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
                     {exam.title}
                   </h3>
                   <button
-                    onClick={() => handleStartEditTitle(exam)}
+                    onClick={() => handleStartEditExamInfo(exam)}
                     className="text-slate-400 hover:text-indigo-600 p-1 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer shrink-0"
-                    title="Chỉnh sửa tên đề kiểm tra"
+                    title="Chỉnh sửa thông tin đề kiểm tra"
                   >
                     <Edit3 className="w-4 h-4" />
                   </button>
@@ -664,12 +736,12 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
                   <h3 className="font-black text-xl text-slate-900 leading-snug">{viewingExam.title}</h3>
                   <button
                     id="btn-edit-title-view-modal"
-                    onClick={() => handleStartEditTitle(viewingExam)}
+                    onClick={() => handleStartEditExamInfo(viewingExam)}
                     className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-xl border border-indigo-100 transition-all cursor-pointer flex items-center gap-1 text-xs font-bold shrink-0 shadow-2xs"
-                    title="Sửa tên đề thi"
+                    title="Sửa thông tin đề thi"
                   >
                     <Edit3 className="w-4 h-4" />
-                    <span>Sửa tên</span>
+                    <span>Sửa thông tin</span>
                   </button>
                 </div>
               </div>
@@ -903,43 +975,101 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
         </div>
       )}
 
-      {/* EDIT EXAM TITLE MODAL */}
+      {/* EDIT EXAM INFO MODAL */}
       {editingExam && (
-        <div id="modal-edit-exam-title" className="fixed inset-0 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-[32px] w-full max-w-md shadow-2xl animate-scaleUp border border-slate-100 overflow-hidden">
+        <div id="modal-edit-exam-title" className="fixed inset-0 bg-slate-950/60 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <div className="bg-white rounded-[32px] w-full max-w-lg shadow-2xl animate-scaleUp border border-slate-100 overflow-hidden my-auto">
             <div className="flex justify-between items-center border-b border-slate-100 p-6 bg-slate-50/50">
               <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
                 <Edit3 className="w-5 h-5 text-indigo-600" />
-                Sửa tên đề kiểm tra
+                Sửa thông tin đề thi
               </h3>
               <button
                 type="button"
                 onClick={() => setEditingExam(null)}
-                className="text-slate-400 hover:text-slate-600 p-1.5 bg-white rounded-xl border border-slate-100 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1.5 bg-white rounded-xl border border-slate-100 cursor-pointer shadow-2xs"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveExamTitle} className="p-6 space-y-4">
+            <form onSubmit={handleSaveExamInfo} className="p-6 space-y-4">
+              {/* Tên đề thi */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Tên đề kiểm tra mới
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Tên đề thi *
                 </label>
                 <input
                   id="input-edit-exam-title"
                   type="text"
                   required
                   autoFocus
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  placeholder="Nhập tên mới cho đề kiểm tra..."
-                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  value={editingExamInfo.title}
+                  onChange={(e) => setEditingExamInfo({ ...editingExamInfo, title: e.target.value })}
+                  placeholder="Nhập tên đề kiểm tra..."
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                />
+              </div>
+
+              {/* Khối lớp & Thời gian làm bài */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="select-edit-exam-grade" className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Khối lớp *
+                  </label>
+                  <select
+                    id="select-edit-exam-grade"
+                    value={editingExamInfo.grade}
+                    onChange={(e) => setEditingExamInfo({ ...editingExamInfo, grade: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer transition-all"
+                  >
+                    <option value="Tin học 3">Tin học 3</option>
+                    <option value="Tin học 4">Tin học 4</option>
+                    <option value="Tin học 5">Tin học 5</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="input-edit-exam-duration" className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Thời gian làm bài (phút) *
+                  </label>
+                  <input
+                    id="input-edit-exam-duration"
+                    type="number"
+                    min={1}
+                    max={180}
+                    required
+                    value={editingExamInfo.duration || ""}
+                    onChange={(e) =>
+                      setEditingExamInfo({
+                        ...editingExamInfo,
+                        duration: e.target.value === "" ? 0 : Number(e.target.value)
+                      })
+                    }
+                    placeholder="Ví dụ: 15"
+                    className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Chủ đề chính */}
+              <div className="space-y-1.5">
+                <label htmlFor="input-edit-exam-topic" className="block text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Chủ đề chính *
+                </label>
+                <input
+                  id="input-edit-exam-topic"
+                  type="text"
+                  required
+                  value={editingExamInfo.topic}
+                  onChange={(e) => setEditingExamInfo({ ...editingExamInfo, topic: e.target.value })}
+                  placeholder="Ví dụ: Thông tin và xử lý thông tin..."
+                  className="w-full bg-slate-50 border border-slate-200 focus:bg-white rounded-2xl px-4 py-3 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
               </div>
 
               <div className="bg-indigo-50/50 border border-indigo-100 p-3.5 rounded-2xl text-[11px] text-indigo-800 leading-relaxed font-medium">
-                ℹ️ <strong>Đồng bộ tự động:</strong> Tên đề mới sẽ được cập nhật đồng bộ ở kho đề, lịch giao bài, báo cáo kết quả và giao diện làm bài của học sinh mà không làm thay đổi câu hỏi, đáp án hay điểm số.
+                ℹ️ <strong>Đồng bộ tự động:</strong> Toàn bộ thông tin đề thi mới sẽ được cập nhật đồng bộ ở kho đề, lịch giao bài, báo cáo kết quả và giao diện làm bài của học sinh mà không làm thay đổi câu hỏi, đáp án hay điểm số.
               </div>
 
               <div className="flex gap-3 pt-3 text-xs">
@@ -954,11 +1084,17 @@ export default function ExamBank({ onAssignCreated }: ExamBankProps) {
                 <button
                   id="btn-save-exam-title"
                   type="submit"
-                  disabled={savingTitle || !editingTitle.trim()}
+                  disabled={
+                    savingExamInfo ||
+                    !editingExamInfo.title.trim() ||
+                    !editingExamInfo.topic.trim() ||
+                    !editingExamInfo.grade.trim() ||
+                    editingExamInfo.duration <= 0
+                  }
                   className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-black py-3.5 rounded-2xl cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-100 active:scale-[0.98] transition-all"
                 >
-                  {savingTitle && <RefreshCw className="w-4 h-4 animate-spin" />}
-                  Lưu
+                  {savingExamInfo && <RefreshCw className="w-4 h-4 animate-spin" />}
+                  Lưu thông tin
                 </button>
               </div>
             </form>
