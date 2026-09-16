@@ -401,7 +401,7 @@ function getGeminiClient(): { client: GoogleGenAI; apiKey: string } | null {
 // Retry wrapper to handle transient Gemini API errors with full logging
 async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayMs = 1000) {
   let attempt = 0;
-  const originalModel = options.model || "gemini-3.6-flash";
+  const originalModel = options.model || "gemini-1.5-flash";
   const geminiObj = getGeminiClient();
   if (!geminiObj) {
     console.error("GEMINI_API_KEY is missing");
@@ -418,7 +418,7 @@ async function generateContentWithRetry(options: any, maxRetries = 3, baseDelayM
 
   const { client: aiClient } = geminiObj;
   // Model hierarchy: working active models on Gemini API
-  const modelOrder = ["gemini-3.6-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+  const modelOrder = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-flash-latest"];
   options.model = modelOrder[0];
 
   let lastError: any = null;
@@ -1081,8 +1081,8 @@ const handleGenerateExam = async (req: express.Request, res: express.Response) =
       error: "GEMINI_API_KEY_MISSING",
       message: "GEMINI_API_KEY is missing. Khóa API chưa được cấu hình trên môi trường Vercel Production. Vui lòng bổ sung biến môi trường GEMINI_API_KEY trong Vercel Settings -> Environment Variables và kích hoạt Redeploy.",
       details: {
-        endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
-        model: "gemini-3.6-flash",
+        endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        model: "gemini-1.5-flash",
         httpStatus: 400,
         responseBody: "GEMINI_API_KEY is missing in process.env",
         stackTrace: "N/A"
@@ -1118,7 +1118,7 @@ Hãy phân tích và trả về kết quả cấu trúc JSON chính xác theo qu
     "difficulty": "Nhận biết" // chỉ được nhận một trong ba giá trị: 'Nhận biết', 'Thông hiểu', 'Vận dụng'
   }`;
 
-  let chosenModel = "gemini-3.6-flash";
+  let chosenModel = "gemini-1.5-flash";
   let endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent`;
 
   try {
@@ -1253,8 +1253,8 @@ const handleGenerateSingleQuestion = async (req: express.Request, res: express.R
       error: "GEMINI_API_KEY_MISSING",
       message: "GEMINI_API_KEY is missing. Khóa API chưa được cấu hình trên môi trường Vercel Production.",
       details: {
-        endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent",
-        model: "gemini-3.6-flash",
+        endpoint: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+        model: "gemini-1.5-flash",
         httpStatus: 400,
         responseBody: "GEMINI_API_KEY is missing in process.env",
         stackTrace: "N/A"
@@ -1279,7 +1279,7 @@ Yêu cầu trả về duy nhất một đối tượng JSON khớp chính xác l
   "difficulty": "Thông hiểu" // nhận một trong ba: 'Nhận biết', 'Thông hiểu', 'Vận dụng'
 }`;
 
-  let chosenModel = "gemini-3.6-flash";
+  let chosenModel = "gemini-1.5-flash";
   let endpointUrl = `https://generativelanguage.googleapis.com/v1beta/models/${chosenModel}:generateContent`;
 
   try {
@@ -1454,7 +1454,7 @@ ${textToParse.slice(0, 15000)}
 
       try {
         const result = await generateContentWithRetry({
-          model: "gemini-3.6-flash",
+          model: "gemini-1.5-flash",
           contents: prompt,
           config: {
             responseMimeType: "application/json"
