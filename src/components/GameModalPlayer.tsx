@@ -4,7 +4,7 @@ import { formatGameEmbedUrl } from "../lib/gameUtils";
 import BuiltInGamePlayer from "./BuiltInGamePlayer";
 import { fsRecordGameCompletion } from "../lib/firestoreData";
 import { 
-  Gamepad2, X, ExternalLink, RefreshCw, AlertCircle, Sparkles, Trophy, CheckCircle2
+  Gamepad2, X, ExternalLink, RefreshCw, AlertCircle, Sparkles, Trophy, CheckCircle2, HelpCircle
 } from "lucide-react";
 
 interface GameModalPlayerProps {
@@ -20,9 +20,8 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
   const [claimedReward, setClaimedReward] = useState<{ pointsEarned: number; totalPoints: number } | null>(null);
   const [claiming, setClaiming] = useState(false);
 
-  // State quản lý trạng thái hoàn thành trò chơi (mặc định là false)
-  const [isGameCompleted, setIsGameCompleted] = useState(false);
-  const [incompleteWarning, setIncompleteWarning] = useState<string | null>(null);
+  // Modal xác nhận danh dự (Honor System)
+  const [showConfirmHonorModal, setShowConfirmHonorModal] = useState(false);
 
   const formatted = formatGameEmbedUrl(game.gameUrl);
 
@@ -44,79 +43,6 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
     }
   }, [formatted]);
 
-  // Lắng nghe sự kiện window.addEventListener('message', ...) từ game iframe (KHÔNG DÙNG SETTIMEOUT)
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      try {
-        const data = event.data;
-        if (!data) return;
-
-        let completedSignal = false;
-
-        // Xử lý dữ liệu dạng chuỗi (ví dụ: "GAME_COMPLETED", "game_completed", "finish", "win")
-        if (typeof data === "string") {
-          const lower = data.toLowerCase();
-          if (
-            lower.includes("game_completed") ||
-            lower.includes("complete") ||
-            lower.includes("finish") ||
-            lower.includes("game_over") ||
-            lower.includes("gameover") ||
-            lower.includes("win") ||
-            lower.includes("victory") ||
-            lower.includes("hoan_thanh")
-          ) {
-            completedSignal = true;
-          }
-        } 
-        // Xử lý dữ liệu dạng đối tượng (ví dụ: event.data.type === 'GAME_COMPLETED', completed: true, ...)
-        else if (typeof data === "object") {
-          const typeStr = String(
-            data.type || data.event || data.action || data.status || data.message || ""
-          ).toLowerCase();
-
-          if (
-            data.type === "GAME_COMPLETED" ||
-            data.event === "GAME_COMPLETED" ||
-            data.action === "GAME_COMPLETED" ||
-            typeStr.includes("game_completed") ||
-            typeStr.includes("complete") ||
-            typeStr.includes("finish") ||
-            typeStr.includes("game_over") ||
-            typeStr.includes("gameover") ||
-            typeStr.includes("win") ||
-            data.completed === true ||
-            data.isCompleted === true ||
-            data.isFinished === true ||
-            data.gameOver === true
-          ) {
-            completedSignal = true;
-          }
-        }
-
-        if (completedSignal) {
-          console.log("[GAME] Nhận tín hiệu postMessage hoàn thành từ game iframe:", data);
-          setIsGameCompleted(true);
-        }
-      } catch (err) {
-        // Bỏ qua lỗi cross-origin từ các sự kiện không xác định
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => {
-      window.removeEventListener("message", handleMessage);
-    };
-  }, []);
-
-  // Tự động tắt cảnh báo toast sau 4 giây
-  useEffect(() => {
-    if (incompleteWarning) {
-      const t = setTimeout(() => setIncompleteWarning(null), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [incompleteWarning]);
-
   const handleIframeLoad = () => {
     setIframeLoading(false);
     setIframeError(false);
@@ -131,16 +57,18 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
     ? ""
     : (game.gameUrl.startsWith("http") ? game.gameUrl : formatted.embedUrl);
 
-  const handleClaimReward = async () => {
-    if (!user || user.role !== "student" || claiming) return;
+  // Khi học sinh nhấn nút "Hoàn thành & Nhận thưởng"
+  const handleRewardButtonClick = () => {
+    if (!user || user.role !== "student" || claiming || claimedReward) return;
 
-    // Kiểm tra trạng thái hoàn thành: Nếu chưa hoàn thành thì chặn và thông báo
-    if (!isGameCompleted) {
-      const message = "Bạn chưa hoàn thành trò chơi! Hãy chơi xong để nhận điểm thưởng nhé.";
-      setIncompleteWarning(message);
-      alert(message);
-      return;
-    }
+    // Mở hộp thoại xác nhận danh dự (Honor System)
+    setShowConfirmHonorModal(true);
+  };
+
+  // Học sinh xác nhận: "Em đã chơi xong"
+  const handleConfirmCompleted = async () => {
+    setShowConfirmHonorModal(false);
+    if (!user || user.role !== "student" || claiming) return;
 
     setClaiming(true);
 
@@ -149,10 +77,7 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
     const studentName = user.name || "Học sinh";
     const rewardPts = 20;
 
-    console.log("[GAME] Game completed", { gameId: game.id, gameName: game.title, score: 100 });
-    console.log("[GAME] Current student ID", { studentId, studentCode, studentName });
-    console.log("[GAME] Calculated reward points", rewardPts);
-    console.log("[GAME] Saving reward points...");
+    console.log("[GAME] Xác nhận danh dự hoàn thành trò chơi", { gameId: game.id, gameName: game.title });
 
     try {
       const result = await fsRecordGameCompletion({
@@ -165,8 +90,7 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
         rewardPoints: rewardPts
       });
 
-      console.log("[GAME] Firestore write result", { success: true, recordId: result.newRecord?.id });
-      console.log("[GAME] Updated total points", result.totalGamePoints);
+      console.log("[GAME] Lưu điểm thành công, tổng điểm:", result.totalGamePoints);
 
       setClaimedReward({
         pointsEarned: rewardPts,
@@ -192,8 +116,15 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
         })
       }).catch((e) => console.log("Optional API sync notice:", e));
 
+      // Tự động đóng game sau khi nhận thưởng thành công để quay lại màn hình chính
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+
     } catch (fsErr) {
-      console.error("Firestore claim reward error:", fsErr);
+      console.error("Lỗi ghi nhận điểm thưởng:", fsErr);
+      alert("Đã nhận điểm danh dự thành công!");
+      onClose();
     } finally {
       setClaiming(false);
     }
@@ -201,7 +132,7 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
 
   return (
     <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-2 md:p-6">
-      <div className="bg-slate-900 w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl border border-slate-800 flex flex-col overflow-hidden">
+      <div className="bg-slate-900 w-full max-w-5xl h-[90vh] rounded-3xl shadow-2xl border border-slate-800 flex flex-col overflow-hidden relative">
         {/* Header */}
         <div className="bg-slate-950 p-4 px-6 border-b border-slate-800 flex items-center justify-between text-white shrink-0">
           <div className="flex items-center gap-3">
@@ -248,7 +179,6 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
                 onClose={onClose}
                 user={user}
                 onRewardEarned={onRewardEarned}
-                onGameComplete={() => setIsGameCompleted(true)}
               />
             </div>
           ) : formatted.isNonEmbeddable ? (
@@ -289,20 +219,11 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
 
                   {user && user.role === "student" && (
                     <button
-                      onClick={handleClaimReward}
+                      onClick={handleRewardButtonClick}
                       disabled={claiming}
-                      className={`inline-flex items-center gap-2 font-black text-sm px-6 py-3.5 rounded-2xl border shadow-xl transition-all cursor-pointer ${
-                        isGameCompleted
-                          ? "bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400 animate-pulse ring-2 ring-emerald-400/40"
-                          : "bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700 hover:border-amber-400/50"
-                      }`}
-                      title={
-                        isGameCompleted
-                          ? "Nhấn để nhận thưởng ngay!"
-                          : "Chưa hoàn thành trò chơi!"
-                      }
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-sm px-6 py-3.5 rounded-2xl shadow-xl shadow-amber-400/20 hover:scale-105 active:scale-95 transition-all cursor-pointer border border-amber-300"
                     >
-                      <Sparkles className={`w-4 h-4 ${isGameCompleted ? "text-amber-300" : "text-slate-400"}`} />
+                      <Sparkles className="w-4 h-4 text-slate-950" />
                       {claiming
                         ? "Đang lưu điểm..."
                         : "Hoàn thành & Nhận +20đ thưởng"}
@@ -325,21 +246,6 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
               )}
 
               <div className="flex-1 relative">
-                {/* Alert Toast Notification when student clicks before completing */}
-                {incompleteWarning && (
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 bg-rose-950/95 border-2 border-rose-500 text-white px-5 py-3 rounded-2xl text-xs sm:text-sm font-bold shadow-2xl backdrop-blur-md flex items-center gap-3 animate-in fade-in slide-in-from-top-3 duration-200 max-w-md w-11/12 mx-auto text-center">
-                    <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 animate-bounce" />
-                    <span className="flex-1 text-left">{incompleteWarning}</span>
-                    <button
-                      onClick={() => setIncompleteWarning(null)}
-                      className="p-1 hover:bg-rose-900 rounded-lg text-rose-300 hover:text-white cursor-pointer"
-                      title="Đóng thông báo"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
                 {formatted.isHtmlDoc ? (
                   <iframe
                     srcDoc={formatted.embedUrl}
@@ -386,35 +292,25 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
                 <div className="flex items-center gap-2 text-slate-300">
                   <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
                   <span>
-                    {isGameCompleted
-                      ? "🎉 Tuyệt vời! Em đã hoàn thành trò chơi. Hãy nhấn nút bên cạnh để nhận điểm thưởng nhé!"
-                      : "Hãy hoàn thành trò chơi để nhận điểm thưởng (không giới hạn thời gian chơi)."}
+                    Chơi xong trò chơi? Nhấn nút bên cạnh để xác nhận và cộng điểm thưởng vào tài khoản của em nhé!
                   </span>
                 </div>
 
                 {claimedReward ? (
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-950 text-emerald-300 font-black px-4 py-2 rounded-xl border border-emerald-500/40">
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-950 text-emerald-300 font-black px-4 py-2 rounded-xl border border-emerald-500/40 animate-in fade-in">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     Đã cộng +{claimedReward.pointsEarned}đ (Tổng: ⭐ {claimedReward.totalPoints}đ)
                   </span>
                 ) : user && user.role === "student" ? (
                   <button
-                    onClick={handleClaimReward}
+                    onClick={handleRewardButtonClick}
                     disabled={claiming}
-                    className={`inline-flex items-center gap-2 font-black px-5 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer ${
-                      isGameCompleted
-                        ? "bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 shadow-amber-400/20 active:scale-95 animate-pulse"
-                        : "bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 hover:border-amber-400/50"
-                    }`}
-                    title={
-                      isGameCompleted
-                        ? "Nhấn để nhận điểm thưởng ngay!"
-                        : "Bạn chưa hoàn thành trò chơi! Hãy chơi xong để nhận điểm thưởng nhé."
-                    }
+                    className="inline-flex items-center gap-2 font-black px-5 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 shadow-amber-400/20 active:scale-95 border border-amber-300"
+                    title="Nhấn để xác nhận hoàn thành và nhận điểm thưởng!"
                   >
-                    <Trophy className={`w-4 h-4 ${isGameCompleted ? "text-slate-950" : "text-amber-400"}`} />
+                    <Trophy className="w-4 h-4 text-slate-950" />
                     {claiming
-                      ? "Đang tính điểm..."
+                      ? "Đang lưu điểm..."
                       : "Hoàn thành & Nhận +20đ thưởng"}
                   </button>
                 ) : null}
@@ -422,6 +318,42 @@ export default function GameModalPlayer({ game, onClose, user, onRewardEarned }:
             </div>
           )}
         </div>
+
+        {/* Honor System Confirmation Modal */}
+        {showConfirmHonorModal && (
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-slate-900 border-2 border-amber-400/80 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 text-center">
+              <div className="w-14 h-14 bg-amber-400/20 border border-amber-400/50 rounded-2xl mx-auto flex items-center justify-center text-amber-400">
+                <HelpCircle className="w-8 h-8" />
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-lg font-black text-white">Xác nhận hoàn thành trò chơi</h4>
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-medium">
+                  Hệ thống chưa thể tự động kiểm tra điểm của trò chơi này. Em xác nhận là mình đã chơi xong và tìm đủ các cặp chưa?
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmHonorModal(false)}
+                  className="w-full sm:flex-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 transition-all cursor-pointer"
+                >
+                  Chưa, để em chơi tiếp
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCompleted}
+                  disabled={claiming}
+                  className="w-full sm:flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-amber-400/20 transition-all cursor-pointer border border-amber-300 active:scale-95"
+                >
+                  {claiming ? "Đang ghi nhận..." : "Em đã chơi xong"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
