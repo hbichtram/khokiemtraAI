@@ -11,15 +11,16 @@ interface BuiltInGamePlayerProps {
   onClose?: () => void;
   user?: User | null;
   onRewardEarned?: (rewardPoints: number, gameTitle: string) => void;
+  onGameComplete?: () => void;
 }
 
-export default function BuiltInGamePlayer({ gameKey, onClose, user, onRewardEarned }: BuiltInGamePlayerProps) {
+export default function BuiltInGamePlayer({ gameKey, onClose, user, onRewardEarned, onGameComplete }: BuiltInGamePlayerProps) {
   if (gameKey === "typing") {
-    return <TypingGame user={user} onRewardEarned={onRewardEarned} />;
+    return <TypingGame user={user} onRewardEarned={onRewardEarned} onGameComplete={onGameComplete} />;
   } else if (gameKey === "quiz") {
-    return <QuizGame user={user} onRewardEarned={onRewardEarned} />;
+    return <QuizGame user={user} onRewardEarned={onRewardEarned} onGameComplete={onGameComplete} />;
   } else if (gameKey === "scratch-maze") {
-    return <ScratchMazeGame user={user} onRewardEarned={onRewardEarned} />;
+    return <ScratchMazeGame user={user} onRewardEarned={onRewardEarned} onGameComplete={onGameComplete} />;
   }
 
   return (
@@ -38,8 +39,13 @@ async function saveGameReward(
   score: number,
   rewardPoints: number,
   setSavedInfo: (info: { pointsEarned: number; totalPoints: number }) => void,
-  onRewardEarned?: (rewardPoints: number, gameTitle: string) => void
+  onRewardEarned?: (rewardPoints: number, gameTitle: string) => void,
+  onGameComplete?: () => void
 ) {
+  if (onGameComplete) {
+    onGameComplete();
+  }
+
   if (!user || user.role !== "student") return;
 
   const studentId = user.id || user.studentCode || "student-default";
@@ -100,10 +106,12 @@ async function saveGameReward(
 // ==========================================
 function TypingGame({
   user,
-  onRewardEarned
+  onRewardEarned,
+  onGameComplete
 }: {
   user?: User | null;
   onRewardEarned?: (rewardPoints: number, gameTitle: string) => void;
+  onGameComplete?: () => void;
 }) {
   const WORD_LIST = [
     "f d j k a s l ; g h",
@@ -147,7 +155,8 @@ function TypingGame({
         score,
         calculatedReward,
         setSavedInfo,
-        onRewardEarned
+        onRewardEarned,
+        onGameComplete
       );
     }
   }, [gameOver]);
@@ -307,10 +316,12 @@ function TypingGame({
 // ==========================================
 function QuizGame({
   user,
-  onRewardEarned
+  onRewardEarned,
+  onGameComplete
 }: {
   user?: User | null;
   onRewardEarned?: (rewardPoints: number, gameTitle: string) => void;
+  onGameComplete?: () => void;
 }) {
   const QUESTIONS = [
     {
@@ -359,7 +370,8 @@ function QuizGame({
         score,
         calculatedReward,
         setSavedInfo,
-        onRewardEarned
+        onRewardEarned,
+        onGameComplete
       );
     }
   }, [gameOver]);
@@ -501,10 +513,12 @@ function QuizGame({
 // ==========================================
 function ScratchMazeGame({
   user,
-  onRewardEarned
+  onRewardEarned,
+  onGameComplete
 }: {
   user?: User | null;
   onRewardEarned?: (rewardPoints: number, gameTitle: string) => void;
+  onGameComplete?: () => void;
 }) {
   const [posX, setPosX] = useState(0);
   const [posY, setPosY] = useState(0);
@@ -527,7 +541,8 @@ function ScratchMazeGame({
         300,
         30,
         setSavedInfo,
-        onRewardEarned
+        onRewardEarned,
+        onGameComplete
       );
     }
   }, [collected.length]);
