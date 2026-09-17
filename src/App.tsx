@@ -517,65 +517,67 @@ export default function App() {
   return (
     <div
       id="login-portal-root"
-      className="h-[100dvh] min-h-[100dvh] max-h-[100dvh] bg-[#F4F7FB] flex flex-col items-center justify-center p-3 sm:p-4 selection:bg-indigo-100 selection:text-indigo-900 relative overflow-y-auto sm:overflow-hidden"
+      className="h-[100dvh] min-h-[100dvh] max-h-[100dvh] bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex flex-col items-center justify-center p-3 sm:p-4 selection:bg-indigo-100 selection:text-indigo-900 relative overflow-y-auto sm:overflow-hidden"
     >
-      {/* Subtle ambient light accents in background */}
+      {/* Dynamic ambient blur circles for depth & gamified feel */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-24 -left-24 w-72 h-72 sm:w-96 sm:h-96 bg-indigo-200/30 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -right-24 w-72 h-72 sm:w-96 sm:h-96 bg-blue-200/30 rounded-full blur-3xl" />
+        <div className="absolute -top-20 -left-20 w-80 h-80 sm:w-96 sm:h-96 bg-indigo-200/50 rounded-full blur-3xl animate-pulse" style={{ animationDuration: '6s' }} />
+        <div className="absolute top-1/4 -right-20 w-72 h-72 sm:w-80 sm:h-80 bg-purple-200/40 rounded-full blur-3xl" />
+        <div className="absolute -bottom-20 -left-20 w-80 h-80 sm:w-96 sm:h-96 bg-amber-200/40 rounded-full blur-3xl" />
+        <div className="absolute -bottom-20 -right-20 w-80 h-80 sm:w-96 sm:h-96 bg-blue-200/50 rounded-full blur-3xl" />
       </div>
 
-      {/* Main Login Card - Compact & Balanced */}
-      <div className="relative z-10 w-full max-w-[420px] bg-white border border-slate-200/90 rounded-[24px] sm:rounded-[28px] px-6 py-5 sm:px-7 sm:py-6 shadow-[0_10px_35px_rgba(15,23,42,0.05)] space-y-3.5 sm:space-y-4 transition-all duration-300">
+      {/* Main Login Card - Gamified 3D & Deep Colored Shadow */}
+      <div className="relative z-10 w-full max-w-[420px] bg-white/95 backdrop-blur-sm border-2 border-white/80 rounded-[32px] px-6 py-6 sm:px-8 sm:py-7 shadow-[0_20px_50px_-12px_rgba(99,102,241,0.15)] space-y-4 transition-all duration-300">
         
         {/* LOGO & BRANDING */}
         <div className="text-center space-y-1.5">
-          <div className="inline-flex items-center justify-center w-11 h-11 sm:w-12 sm:h-12 bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white rounded-xl sm:rounded-2xl shadow-sm shadow-indigo-500/20">
-            <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-violet-500 text-white rounded-2xl shadow-lg shadow-indigo-500/30 transform hover:scale-105 transition-transform duration-200">
+            <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 text-amber-300 drop-shadow-sm" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-[22px] font-black tracking-tight text-slate-900 leading-tight">
+            <h1 className="text-2xl sm:text-[26px] font-black tracking-tight bg-gradient-to-r from-indigo-600 to-violet-500 bg-clip-text text-transparent leading-tight">
               HỌC VUI – CHƠI HAY
             </h1>
-            <p className="text-[11px] sm:text-xs text-slate-500 font-semibold mt-0.5">
+            <p className="text-xs sm:text-[13px] text-slate-500 font-semibold mt-0.5">
               Học tập thông minh • Tiến bộ mỗi ngày
             </p>
           </div>
         </div>
 
-        {/* ROLE SELECTOR TOGGLE (Segmented Control) */}
-        <div className="bg-slate-100/90 border border-slate-200/70 p-1 rounded-xl sm:rounded-2xl flex text-xs sm:text-[13px] font-bold">
+        {/* ROLE SELECTOR TOGGLE (3D Segmented Buttons) */}
+        <div className="bg-slate-100/90 p-1.5 rounded-2xl flex gap-2 text-xs sm:text-[13px] font-bold border-2 border-slate-200/60">
           <button
             id="toggle-login-teacher"
             type="button"
             onClick={() => { setLoginRole("teacher"); setAuthError(null); }}
-            className={`flex-1 py-2 px-3 rounded-lg sm:rounded-xl cursor-pointer text-center transition-all duration-200 flex items-center justify-center gap-1.5 font-bold ${
+            className={`flex-1 py-2.5 px-3 rounded-xl cursor-pointer text-center transition-all duration-150 flex items-center justify-center gap-1.5 active:translate-y-0.5 ${
               loginRole === "teacher"
-                ? "bg-white text-indigo-950 shadow-xs border border-slate-200/60"
-                : "text-slate-500 hover:text-slate-800"
+                ? "bg-indigo-100 border-b-4 border-indigo-300 text-indigo-800 font-black shadow-xs"
+                : "border-b-4 border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 font-bold opacity-75 hover:opacity-100"
             }`}
           >
-            <GraduationCap className="w-4 h-4 shrink-0 text-indigo-600" />
+            <GraduationCap className={`w-4 h-4 shrink-0 ${loginRole === "teacher" ? "text-indigo-700" : "text-slate-400"}`} />
             <span>Giáo viên</span>
           </button>
           <button
             id="toggle-login-student"
             type="button"
             onClick={() => { setLoginRole("student"); setAuthError(null); }}
-            className={`flex-1 py-2 px-3 rounded-lg sm:rounded-xl cursor-pointer text-center transition-all duration-200 flex items-center justify-center gap-1.5 font-bold ${
+            className={`flex-1 py-2.5 px-3 rounded-xl cursor-pointer text-center transition-all duration-150 flex items-center justify-center gap-1.5 active:translate-y-0.5 ${
               loginRole === "student"
-                ? "bg-white text-slate-900 shadow-xs border border-slate-200/60"
-                : "text-slate-500 hover:text-slate-800"
+                ? "bg-amber-400 border-b-4 border-amber-600 text-amber-950 font-black shadow-xs"
+                : "border-b-4 border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 font-bold opacity-75 hover:opacity-100"
             }`}
           >
-            <Smile className="w-4 h-4 shrink-0 text-amber-500" />
+            <Smile className={`w-4 h-4 shrink-0 ${loginRole === "student" ? "text-amber-900" : "text-slate-400"}`} />
             <span>Học sinh</span>
           </button>
         </div>
 
         {/* ERROR DISPLAYER */}
         {authError && (
-          <div className="bg-rose-50/95 border border-rose-200 p-3 sm:p-3.5 rounded-xl sm:rounded-2xl space-y-2 text-rose-950 animate-in fade-in duration-200">
+          <div className="bg-rose-50/95 border-2 border-rose-200 p-3 sm:p-3.5 rounded-2xl space-y-2 text-rose-950 animate-in fade-in duration-200 shadow-xs">
             <div className="flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-rose-600 shrink-0 mt-0.5" />
               <div className="space-y-0.5 flex-1">
@@ -592,7 +594,7 @@ export default function App() {
 
             {authError.type === "unauthorized-domain" && authError.domain && (
               <div className="pt-1.5 border-t border-rose-200/80 space-y-1.5">
-                <div className="flex items-center justify-between gap-2 bg-white/95 border border-rose-200 rounded-lg sm:rounded-xl px-2.5 py-1.5 text-[11px]">
+                <div className="flex items-center justify-between gap-2 bg-white/95 border border-rose-200 rounded-xl px-2.5 py-1.5 text-[11px]">
                   <div className="flex items-center gap-1.5 truncate font-mono font-semibold text-slate-700">
                     <Globe className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                     <span className="truncate">{authError.domain}</span>
@@ -600,7 +602,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => handleCopyDomain(authError.domain!)}
-                    className="shrink-0 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-md flex items-center gap-1 text-[10px] cursor-pointer transition-colors"
+                    className="shrink-0 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg flex items-center gap-1 text-[10px] cursor-pointer transition-colors"
                     title="Sao chép hostname này"
                   >
                     {copiedDomain ? (
@@ -641,7 +643,7 @@ export default function App() {
               type="button"
               onClick={handleTeacherGoogleLogin}
               disabled={loginLoading}
-              className="w-full h-12 sm:h-13 bg-white hover:bg-slate-50 active:bg-slate-100 border border-slate-300 hover:border-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-500/15 text-slate-700 font-bold rounded-xl sm:rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-3 cursor-pointer shadow-xs hover:shadow-sm active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full h-12 sm:h-13 bg-white hover:bg-slate-50 active:translate-y-1 border-2 border-slate-200 border-b-4 border-b-slate-300 hover:border-slate-300 hover:border-b-slate-400 focus:outline-none focus:ring-4 focus:ring-indigo-100 text-slate-700 font-black rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-3 cursor-pointer shadow-md shadow-slate-200/50 active:border-b-0 transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
             >
               {loginLoading ? (
                 <>
@@ -658,9 +660,9 @@ export default function App() {
           </div>
         ) : (
           // LOGIN FORM - STUDENT
-          <form onSubmit={handleStudentLogin} className="space-y-3">
-            <div className="space-y-1">
-              <label htmlFor="input-student-code" className="block text-[10px] sm:text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+          <form onSubmit={handleStudentLogin} className="space-y-3.5">
+            <div className="space-y-1.5">
+              <label htmlFor="input-student-code" className="block text-[11px] font-black text-slate-600 uppercase tracking-wider">
                 MÃ HỌC SINH ĐƯỢC CẤP
               </label>
               <div className="relative">
@@ -672,17 +674,17 @@ export default function App() {
                   value={studentCode}
                   onChange={(e) => setStudentCode(e.target.value)}
                   placeholder="Ví dụ: HS5C01"
-                  className="w-full h-11 sm:h-12 bg-slate-50/80 hover:bg-slate-50 focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-amber-500 rounded-xl sm:rounded-2xl pl-10 pr-3.5 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-amber-500/15 transition-all font-bold uppercase tracking-wider"
+                  className="w-full h-12 sm:h-13 bg-slate-50 border-2 border-slate-200 rounded-2xl pl-10 pr-4 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all font-bold uppercase tracking-wider"
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label htmlFor="input-student-password" className="block text-[10px] sm:text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                <label htmlFor="input-student-password" className="block text-[11px] font-black text-slate-600 uppercase tracking-wider">
                   MẬT KHẨU
                 </label>
-                <span className="text-[10px] text-amber-600 font-semibold">
+                <span className="text-[11px] text-amber-600 font-bold">
                   (Bỏ trống nếu là lần đầu)
                 </span>
               </div>
@@ -694,12 +696,12 @@ export default function App() {
                   value={studentPassword}
                   onChange={(e) => setStudentPassword(e.target.value)}
                   placeholder="Nhập mật khẩu của em..."
-                  className="w-full h-11 sm:h-12 bg-slate-50/80 hover:bg-slate-50 focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-amber-500 rounded-xl sm:rounded-2xl pl-10 pr-10 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-amber-500/15 transition-all font-medium"
+                  className="w-full h-12 sm:h-13 bg-slate-50 border-2 border-slate-200 rounded-2xl pl-10 pr-11 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 focus:outline-none transition-all font-bold"
                 />
                 <button
                   type="button"
                   onClick={() => setShowStudentPassword(!showStudentPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition-colors"
                   title={showStudentPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                 >
                   {showStudentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -714,11 +716,11 @@ export default function App() {
               id="btn-login-student"
               type="submit"
               disabled={loginLoading}
-              className="w-full h-11 sm:h-12 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 active:from-amber-600 active:to-amber-700 disabled:opacity-60 text-slate-950 font-extrabold rounded-xl sm:rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer shadow-sm shadow-amber-500/20 active:scale-[0.99] transition-all disabled:cursor-not-allowed disabled:shadow-none mt-1"
+              className="w-full h-12 sm:h-13 bg-gradient-to-b from-amber-400 to-orange-500 hover:from-amber-400 hover:to-orange-600 text-slate-950 font-black text-sm sm:text-base rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-orange-500/40 border-b-4 border-orange-600 active:translate-y-1 active:border-b-0 transition-all disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none mt-3"
             >
               {loginLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-950" />
                   <span>Đang kiểm tra...</span>
                 </>
               ) : (
@@ -735,13 +737,13 @@ export default function App() {
       {/* First-time Password Setup Modal for Students */}
       {setupStudentInfo && (
         <div id="modal-first-time-password-setup" className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="bg-white border border-slate-200/90 rounded-[28px] w-full max-w-[420px] p-6 sm:p-7 shadow-2xl space-y-4 animate-scaleUp">
+          <div className="bg-white/95 backdrop-blur-sm border-2 border-white/80 rounded-[32px] w-full max-w-[420px] p-6 sm:p-7 shadow-[0_20px_50px_-12px_rgba(99,102,241,0.2)] space-y-4 animate-scaleUp">
             <div className="text-center space-y-2">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-sm shadow-amber-500/10">
-                <KeyRound className="w-6 h-6" />
+              <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto shadow-md shadow-amber-500/20 border border-amber-200">
+                <KeyRound className="w-7 h-7" />
               </div>
               <div>
-                <h3 className="text-lg font-black text-slate-900">Tạo Mật Khẩu Lần Đầu</h3>
+                <h3 className="text-xl font-black text-slate-900">Tạo Mật Khẩu Lần Đầu</h3>
                 <p className="text-xs text-slate-500 font-medium mt-0.5">
                   Chào mừng <strong className="text-slate-800 font-black">{setupStudentInfo.name}</strong>!
                 </p>
@@ -749,25 +751,25 @@ export default function App() {
                   Đây là lần đầu tiên em đăng nhập. Em hãy tự tạo mật khẩu để bảo vệ tài khoản và kết quả học tập của mình nhé!
                 </p>
               </div>
-              <div className="bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-xl text-[11px] font-medium text-slate-600 inline-block">
-                Lớp: <strong className="text-slate-800">{setupStudentInfo.className}</strong> • Mã: <span className="font-mono font-bold text-indigo-600">{setupStudentInfo.studentCode}</span>
+              <div className="bg-slate-50 border-2 border-slate-100 px-3.5 py-1.5 rounded-2xl text-[11px] font-bold text-slate-600 inline-block">
+                Lớp: <strong className="text-slate-800">{setupStudentInfo.className}</strong> • Mã: <span className="font-mono font-black text-indigo-600">{setupStudentInfo.studentCode}</span>
               </div>
             </div>
 
             {setupError && (
-              <div className="bg-rose-50 border border-rose-200 p-3 rounded-xl flex items-start gap-2 text-rose-900 text-xs">
+              <div className="bg-rose-50 border-2 border-rose-200 p-3 rounded-2xl flex items-start gap-2 text-rose-900 text-xs">
                 <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                 <span className="font-medium">{setupError}</span>
               </div>
             )}
 
             <form onSubmit={handleSaveNewPassword} className="space-y-3.5">
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider">
                   MẬT KHẨU MỚI *
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   <input
                     type={showNewPassword ? "text" : "password"}
                     required
@@ -775,56 +777,56 @@ export default function App() {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Nhập mật khẩu mới..."
-                    className="w-full h-11 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl pl-10 pr-10 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                    className="w-full h-12 bg-slate-50 border-2 border-slate-200 focus:bg-white rounded-2xl pl-10 pr-11 text-xs sm:text-sm font-bold focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition-colors"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition-colors"
                   >
                     {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-black text-slate-600 uppercase tracking-wider">
                   XÁC NHẬN MẬT KHẨU *
                 </label>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   <input
                     type={showNewPassword ? "text" : "password"}
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Nhập lại mật khẩu mới..."
-                    className="w-full h-11 bg-slate-50 border border-slate-200 focus:bg-white rounded-xl pl-10 pr-3.5 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all"
+                    className="w-full h-12 bg-slate-50 border-2 border-slate-200 focus:bg-white rounded-2xl pl-10 pr-4 text-xs sm:text-sm font-bold focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 transition-all"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setSetupStudentInfo(null)}
-                  className="flex-1 h-11 border border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  className="flex-1 h-12 border-2 border-slate-200 hover:bg-slate-50 text-slate-600 text-xs font-bold rounded-2xl transition-all cursor-pointer"
                 >
                   Quay lại
                 </button>
                 <button
                   type="submit"
                   disabled={setupLoading}
-                  className="flex-1 h-11 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-[0.99] text-white text-xs font-black rounded-xl shadow-md shadow-amber-500/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60"
+                  className="flex-1 h-12 bg-gradient-to-b from-amber-400 to-orange-500 hover:from-amber-400 hover:to-orange-600 text-slate-950 text-xs sm:text-sm font-black rounded-2xl shadow-lg shadow-orange-500/30 border-b-4 border-orange-600 active:translate-y-1 active:border-b-0 flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-60 disabled:transform-none"
                 >
                   {setupLoading ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
                       <span>Đang lưu...</span>
                     </>
                   ) : (
                     <>
-                      <Check className="w-4 h-4" />
+                      <Check className="w-4 h-4 text-slate-950" />
                       <span>Xác nhận & Vào học</span>
                     </>
                   )}
