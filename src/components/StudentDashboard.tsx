@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { doc, getDoc } from "firebase/firestore";
 import { db as firestoreDb } from "../firebase";
-import { computeClassLeaderboard, LeaderboardItem } from "../lib/leaderboard";
+import { computeClassLeaderboard, LeaderboardItem, formatLeaderboardDuration } from "../lib/leaderboard";
 import { sortAndProcessAssignments, formatRemainingTime, ProcessedAssignment } from "../lib/assignmentUtils";
 import StudentHero from "./StudentHero";
 import { getStudentBannerConfig, DEFAULT_BANNER_CONFIG } from "../lib/bannerStorage";
@@ -712,15 +712,21 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                                   </span>
                                 )}
                               </div>
-                              <span className="text-[10px] font-bold text-slate-500 block truncate">
-                                Đã làm: <strong className="text-slate-700">{item.completedCount} bài</strong>
-                              </span>
+                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 flex-wrap">
+                                <span>
+                                  Đã làm: <strong className="text-slate-700">{item.completedCount} bài</strong>
+                                </span>
+                                <span className="text-slate-300">•</span>
+                                <span className="inline-flex items-center gap-0.5 text-slate-600 bg-white/70 px-1.5 py-0.5 rounded-md border border-white/60 shadow-2xs">
+                                  ⏱️ <strong className="text-slate-700">{formatLeaderboardDuration(item.totalDuration)}</strong>
+                                </span>
+                              </div>
                             </div>
                           </div>
 
                           <div className="text-right shrink-0">
                             <span className="font-black text-xs sm:text-sm text-amber-900 bg-amber-100/90 border border-amber-200/80 px-2.5 py-1 rounded-xl block shadow-2xs backdrop-blur-xs">
-                              {item.avgScore} <span className="text-[10px] font-bold">điểm</span>
+                              {typeof item.score === "number" ? item.score : item.avgScore} <span className="text-[10px] font-bold">điểm</span>
                             </span>
                           </div>
                         </div>
