@@ -241,8 +241,14 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
   }
 
   return (
-    <div id="student-dashboard-root" className="min-h-screen bg-slate-50 text-slate-800 pb-16 font-sans">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
+    <div id="student-dashboard-root" className="min-h-screen bg-gradient-to-br from-indigo-100 via-purple-50 to-pink-100 relative overflow-hidden text-slate-800 pb-16 font-sans">
+      {/* Floating Ambient Circles for Gamification Depth */}
+      <div className="absolute -top-28 -left-28 w-96 h-96 bg-indigo-300/40 rounded-full blur-3xl pointer-events-none -z-0" />
+      <div className="absolute top-1/4 -right-28 w-96 h-96 bg-purple-300/35 rounded-full blur-3xl pointer-events-none -z-0" />
+      <div className="absolute bottom-1/3 -left-24 w-80 h-80 bg-pink-300/35 rounded-full blur-3xl pointer-events-none -z-0" />
+      <div className="absolute -bottom-28 right-1/4 w-96 h-96 bg-amber-200/40 rounded-full blur-3xl pointer-events-none -z-0" />
+
+      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-6">
         {/* ========================================================== */}
         {/* 1. MỘT HERO BANNER DUY NHẤT (STUDENT HERO) */}
         {/* ========================================================== */}
@@ -259,22 +265,22 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
         {/* 2. THANH CHUYỂN TAB (BÀI KIỂM TRA / TRÒ CHƠI) NGAY DƯỚI HERO */}
         {/* ========================================================== */}
         <div className="flex items-center justify-center">
-          <div className="w-full max-w-xl grid grid-cols-2 gap-2 p-1.5 bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-sm">
+          <div className="w-full max-w-xl grid grid-cols-2 gap-2 p-1.5 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl sm:rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
             <button
               id="btn-tab-student-tests"
               type="button"
               onClick={() => setStudentTab("tests")}
-              className={`w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                 studentTab === "tests"
-                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25 scale-[1.01]"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 scale-[1.02]"
+                  : "text-slate-600 hover:bg-white/80 hover:text-slate-900"
               }`}
             >
               <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
               <span>Bài kiểm tra</span>
               {allSortedAssignments.length > 0 && (
                 <span className={`px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold ${
-                  studentTab === "tests" ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                  studentTab === "tests" ? "bg-white/20 text-white" : "bg-white/70 text-slate-700 shadow-2xs"
                 }`}>
                   {allSortedAssignments.length}
                 </span>
@@ -285,10 +291,10 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
               id="btn-tab-student-games"
               type="button"
               onClick={() => setStudentTab("games")}
-              className={`w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer ${
+              className={`w-full flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                 studentTab === "games"
-                  ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25 scale-[1.01]"
-                  : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                  ? "bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/30 scale-[1.02]"
+                  : "text-slate-600 hover:bg-white/80 hover:text-slate-900"
               }`}
             >
               <Gamepad2 className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
@@ -313,37 +319,37 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
               )}
 
               {loading ? (
-          <div className="p-16 text-center bg-white border border-slate-100 rounded-[32px] flex flex-col items-center justify-center gap-3">
+          <div className="p-16 text-center bg-white/60 backdrop-blur-xl border border-white/60 rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex flex-col items-center justify-center gap-3">
             <RefreshCw className="w-12 h-12 animate-spin text-amber-500" />
             <h3 className="font-black text-slate-800 text-lg">Đang đồng bộ bảng học tập của em...</h3>
-            <p className="text-slate-400 text-xs font-bold">Chờ xíu nhé, trợ lý học tập đang kết nối dữ liệu!</p>
+            <p className="text-slate-500 text-xs font-bold">Chờ xíu nhé, trợ lý học tập đang kết nối dữ liệu!</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             {/* LEFT 2 COLUMNS: ASSIGNMENTS LIST WITH 3 TABS */}
             <div className="lg:col-span-2 space-y-6">
-              <div className="bg-white border border-slate-100 rounded-[32px] p-6 md:p-8 shadow-sm space-y-6">
-                <div className="border-b border-slate-100 pb-4 flex justify-between items-center flex-wrap gap-2">
+              <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-[32px] p-6 md:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-6">
+                <div className="border-b border-indigo-100/60 pb-4 flex justify-between items-center flex-wrap gap-2">
                   <h2 className="font-black text-slate-900 text-base md:text-lg flex items-center gap-2">
-                    <span className="bg-amber-100 p-1.5 rounded-xl text-amber-600 block shadow-xs">
+                    <span className="bg-amber-100/80 backdrop-blur-xs p-1.5 rounded-xl text-amber-700 block shadow-xs border border-amber-200/60">
                       <BookOpen className="w-5 h-5 text-amber-600 shrink-0" />
                     </span>
                     Danh sách bài kiểm tra
                   </h2>
-                  <span className="bg-amber-50 text-amber-900 text-[11px] font-black px-3.5 py-1.5 rounded-xl border border-amber-200">
+                  <span className="bg-amber-100/80 backdrop-blur-xs text-amber-950 text-[11px] font-black px-3.5 py-1.5 rounded-xl border border-amber-300/80 shadow-2xs">
                     Tổng số: {allSortedAssignments.length} bài
                   </span>
                 </div>
 
                 {/* 3 TABS SELECTOR */}
-                <div className="grid grid-cols-3 gap-2 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/80">
+                <div className="grid grid-cols-3 gap-2 p-1.5 bg-white/50 backdrop-blur-md rounded-2xl border border-white/70 shadow-xs">
                   <button
                     id="tab-pending-exams"
                     onClick={() => setExamCategoryTab("pending")}
-                    className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                       examCategoryTab === "pending"
-                        ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-200/60 ring-1 ring-amber-400 scale-[1.01]"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                        ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30 ring-1 ring-amber-400 scale-[1.02]"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
                     }`}
                   >
                     <Clock className="w-3.5 h-3.5 shrink-0" />
@@ -351,7 +357,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
                       examCategoryTab === "pending"
                         ? "bg-slate-950 text-amber-300"
-                        : "bg-slate-200 text-slate-700"
+                        : "bg-slate-200/80 text-slate-700"
                     }`}>
                       {pendingAssignments.length}
                     </span>
@@ -360,10 +366,10 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                   <button
                     id="tab-completed-exams"
                     onClick={() => setExamCategoryTab("completed")}
-                    className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                       examCategoryTab === "completed"
-                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-200/60 ring-1 ring-emerald-500 scale-[1.01]"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                        ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30 ring-1 ring-emerald-500 scale-[1.02]"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
                     }`}
                   >
                     <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
@@ -371,7 +377,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
                       examCategoryTab === "completed"
                         ? "bg-white text-emerald-800"
-                        : "bg-slate-200 text-slate-700"
+                        : "bg-slate-200/80 text-slate-700"
                     }`}>
                       {completedAssignmentsList.length}
                     </span>
@@ -380,10 +386,10 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                   <button
                     id="tab-overdue-exams"
                     onClick={() => setExamCategoryTab("overdue")}
-                    className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-3 rounded-xl font-black text-xs sm:text-sm transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                       examCategoryTab === "overdue"
-                        ? "bg-rose-500 text-white shadow-md shadow-rose-200/50 ring-1 ring-rose-400 scale-[1.01]"
-                        : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+                        ? "bg-rose-500 text-white shadow-md shadow-rose-500/30 ring-1 ring-rose-400 scale-[1.02]"
+                        : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
                     }`}
                   >
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -391,7 +397,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
                       examCategoryTab === "overdue"
                         ? "bg-white text-rose-800"
-                        : "bg-slate-200 text-slate-700"
+                        : "bg-slate-200/80 text-slate-700"
                     }`}>
                       {overdueAssignments.length}
                     </span>
@@ -409,14 +415,14 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
 
                   if (currentList.length === 0) {
                     return (
-                      <div className="text-center py-12 bg-slate-50/60 rounded-[24px] border border-dashed border-slate-200 px-4">
-                        <Smile className="w-14 h-14 text-amber-400 mx-auto mb-3 bg-white p-3 rounded-2xl shadow-xs" />
+                      <div className="text-center py-12 bg-white/40 backdrop-blur-md rounded-[24px] border border-dashed border-indigo-200/80 px-4">
+                        <Smile className="w-14 h-14 text-amber-400 mx-auto mb-3 bg-white/80 p-3 rounded-2xl shadow-xs" />
                         <h3 className="font-black text-slate-700 text-sm">
                           {examCategoryTab === "pending" && "Không có bài kiểm tra nào chưa làm"}
                           {examCategoryTab === "completed" && "Chưa có bài kiểm tra nào đã hoàn thành"}
                           {examCategoryTab === "overdue" && "Tuyệt vời! Không có bài kiểm tra nào quá hạn"}
                         </h3>
-                        <p className="text-slate-400 text-xs font-bold mt-1 max-w-xs mx-auto leading-relaxed">
+                        <p className="text-slate-500 text-xs font-bold mt-1 max-w-xs mx-auto leading-relaxed">
                           {examCategoryTab === "pending" && "Khi thầy cô giao thêm bài kiểm tra mới, bài làm sẽ xuất hiện ở đây em nhé."}
                           {examCategoryTab === "completed" && "Hãy hoàn thành các bài kiểm tra trong tab 'CHƯA LÀM' để xem kết quả tại đây."}
                           {examCategoryTab === "overdue" && "Em hãy tiếp tục duy trì nộp bài đúng hạn để đạt kết quả cao nhé!"}
@@ -439,14 +445,14 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                         return (
                           <div
                             key={asg.assignmentId}
-                            className={`border rounded-3xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 transition-all ${
+                            className={`border rounded-3xl p-5 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-5 transition-all backdrop-blur-md shadow-sm hover:shadow-lg hover:-translate-y-0.5 ${
                               isOngoing
-                                ? "border-amber-300 bg-gradient-to-r from-amber-500/10 via-amber-50/20 to-white shadow-md shadow-amber-100/40 hover:shadow-lg"
+                                ? "border-amber-300/80 bg-gradient-to-r from-amber-500/15 via-amber-50/40 to-white/70 shadow-amber-200/30"
                                 : isUpcoming
-                                ? "border-blue-200/80 bg-blue-50/20"
+                                ? "border-blue-200/80 bg-blue-50/40"
                                 : isCompleted
-                                ? "border-emerald-200/80 bg-emerald-50/30"
-                                : "border-rose-200/80 bg-rose-50/20"
+                                ? "border-emerald-200/80 bg-emerald-50/40"
+                                : "border-rose-200/80 bg-rose-50/40"
                             }`}
                           >
                             <div className="space-y-2.5">
@@ -459,13 +465,13 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                                 {examCategoryTab === "pending" && (
                                   <>
                                     {isOngoing && (
-                                      <span className="bg-amber-100 border border-amber-300 text-amber-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
+                                      <span className="bg-amber-100/80 backdrop-blur-xs border border-amber-300 text-amber-950 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
                                         <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
                                         {isInProgress ? "🟢 Đang làm bài" : "🟡 Chưa làm"}
                                       </span>
                                     )}
                                     {isUpcoming && (
-                                      <span className="bg-blue-100 border border-blue-300 text-blue-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
+                                      <span className="bg-blue-100/80 backdrop-blur-xs border border-blue-300 text-blue-950 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
                                         🔵 Sắp diễn ra
                                       </span>
                                     )}
@@ -473,15 +479,15 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                                 )}
 
                                 {examCategoryTab === "completed" && (
-                                  <span className="bg-emerald-100 border border-emerald-300 text-emerald-900 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5">
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span className="bg-emerald-100/80 backdrop-blur-xs border border-emerald-300 text-emerald-950 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
                                     Trạng thái: Đã hoàn thành
                                   </span>
                                 )}
 
                                 {examCategoryTab === "overdue" && (
-                                  <span className="bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-bold px-3 py-1 rounded-xl flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5 text-rose-500" />
+                                  <span className="bg-rose-100/80 backdrop-blur-xs border border-rose-300 text-rose-950 text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 shadow-2xs">
+                                    <Clock className="w-3.5 h-3.5 text-rose-600" />
                                     Cần hoàn thành (Quá hạn)
                                   </span>
                                 )}
@@ -489,22 +495,22 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                                 {/* Secondary Badge: Time remaining or Score */}
                                 {isOngoing && remInfo.text && (
                                   <span
-                                    className={`text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 ${
+                                    className={`text-[11px] font-black px-3 py-1 rounded-xl flex items-center gap-1.5 backdrop-blur-xs ${
                                       remInfo.isUrgent
-                                        ? "bg-rose-100 text-rose-800 border border-rose-300 animate-pulse"
-                                        : "bg-amber-100 text-amber-900 border border-amber-300"
+                                        ? "bg-rose-100/80 text-rose-900 border border-rose-300 animate-pulse shadow-2xs"
+                                        : "bg-amber-100/80 text-amber-950 border border-amber-300 shadow-2xs"
                                     }`}
                                   >
                                     {remInfo.text}
                                   </span>
                                 )}
                                 {isUpcoming && remInfo.text && (
-                                  <span className="bg-blue-50 text-blue-800 border border-blue-200 text-[11px] font-bold px-3 py-1 rounded-xl">
+                                  <span className="bg-blue-100/80 text-blue-950 border border-blue-200 text-[11px] font-bold px-3 py-1 rounded-xl backdrop-blur-xs">
                                     {remInfo.text}
                                   </span>
                                 )}
                                 {isCompleted && (
-                                  <span className="bg-emerald-200/90 text-emerald-950 text-[11px] font-black px-3 py-1 rounded-xl shadow-2xs">
+                                  <span className="bg-emerald-200/90 text-emerald-950 text-[11px] font-black px-3 py-1 rounded-xl shadow-2xs border border-emerald-300/60 backdrop-blur-xs">
                                     Điểm: {asg.score ?? 0}/10
                                   </span>
                                 )}
@@ -515,12 +521,12 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                               </h3>
 
                               <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-500">
-                                <span className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">
-                                  <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                                <span className="flex items-center gap-1 bg-white/70 backdrop-blur-xs px-2.5 py-1 rounded-lg text-slate-700 border border-white/60 shadow-2xs">
+                                  <BookOpen className="w-3.5 h-3.5 shrink-0 text-indigo-500" />
                                   Môn học / Chủ đề: {asg.topic}
                                 </span>
-                                <span className="flex items-center gap-1 bg-slate-100 px-2.5 py-1 rounded-lg text-slate-600">
-                                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                                <span className="flex items-center gap-1 bg-white/70 backdrop-blur-xs px-2.5 py-1 rounded-lg text-slate-700 border border-white/60 shadow-2xs">
+                                  <Clock className="w-3.5 h-3.5 shrink-0 text-amber-500" />
                                   Thời gian: {asg.duration} phút ({asg.questionsCount || 10} câu)
                                 </span>
                               </div>
@@ -571,10 +577,10 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                                   <button
                                     id={`btn-start-exam-${asg.assignmentId}`}
                                     onClick={() => handleStartExam(asg)}
-                                    className={`font-black text-xs md:text-sm px-6 py-4 rounded-2xl cursor-pointer shrink-0 flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-md ${
+                                    className={`font-black text-xs md:text-sm px-6 py-4 rounded-2xl cursor-pointer shrink-0 flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-[0.98] border-b-4 shadow-lg ${
                                       isInProgress
-                                        ? "bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200"
-                                        : "bg-amber-400 hover:bg-amber-500 text-slate-900 shadow-amber-100"
+                                        ? "bg-gradient-to-b from-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-600 text-slate-950 border-amber-600 shadow-amber-500/30"
+                                        : "bg-gradient-to-b from-amber-300 to-amber-400 hover:from-amber-300 hover:to-amber-500 text-slate-950 border-amber-500 shadow-amber-400/30"
                                     }`}
                                   >
                                     {isInProgress ? "Tiếp tục làm bài" : "Bắt đầu làm bài"}
@@ -583,7 +589,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                                 ) : (
                                   <button
                                     disabled
-                                    className="bg-slate-100 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
+                                    className="bg-slate-100/80 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
                                   >
                                     Chưa đến giờ
                                     <Clock className="w-4 h-4" />
@@ -596,7 +602,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                               <button
                                 id={`btn-review-exam-${asg.submissionId || asg.assignmentId}`}
                                 onClick={() => handleViewReview(asg.submissionId!)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98] shadow-sm"
+                                className="bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-500 hover:to-emerald-700 text-white font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105 active:scale-[0.98] border-b-4 border-emerald-800 shadow-lg shadow-emerald-600/30"
                               >
                                 Xem kết quả
                                 <Eye className="w-4 h-4" />
@@ -606,7 +612,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                             {examCategoryTab === "overdue" && (
                               <button
                                 disabled
-                                className="bg-slate-100 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
+                                className="bg-slate-100/80 text-slate-400 font-black text-xs md:text-sm px-6 py-4 rounded-2xl shrink-0 flex items-center justify-center gap-2 cursor-not-allowed border border-slate-200"
                               >
                                 Đã quá hạn
                                 <AlertCircle className="w-4 h-4" />
@@ -626,11 +632,11 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
               {/* LEADERBOARD CARD */}
               <div
                 id="student-leaderboard-card"
-                className="bg-white border border-amber-200/70 rounded-[28px] p-5 sm:p-6 shadow-xs space-y-4 relative overflow-hidden"
+                className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-[32px] p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-4 relative overflow-hidden"
               >
-                <div className="border-b border-amber-100 pb-3 flex items-center justify-between gap-2">
+                <div className="border-b border-amber-200/50 pb-3 flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <div className="bg-amber-100 text-amber-700 p-2 rounded-xl shrink-0">
+                    <div className="bg-amber-100/80 text-amber-700 p-2 rounded-xl shrink-0 backdrop-blur-xs shadow-2xs border border-amber-200/60">
                       <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 fill-amber-300" />
                     </div>
                     <div className="min-w-0 flex-1 overflow-visible">
@@ -638,19 +644,19 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                         <span className="shrink-0">🏆</span>
                         <span className="whitespace-nowrap overflow-visible font-black">BẢNG VÀNG THÀNH TÍCH</span>
                       </h2>
-                      <span className="text-[11px] font-bold text-amber-800/80 block truncate">
+                      <span className="text-[11px] font-bold text-amber-900/80 block truncate">
                         {classInfo?.name || "Lớp học"}
                       </span>
                     </div>
                   </div>
-                  <span className="bg-amber-50 text-amber-900 text-[10px] font-black px-2.5 py-1 rounded-xl shrink-0 whitespace-nowrap border border-amber-200/60">
+                  <span className="bg-amber-100/80 text-amber-950 text-[10px] font-black px-2.5 py-1 rounded-xl shrink-0 whitespace-nowrap border border-amber-300/60 shadow-2xs">
                     TOP 10
                   </span>
                 </div>
 
                 {leaderboard.length === 0 ? (
-                  <div className="bg-amber-50/40 border border-amber-100 rounded-2xl p-5 text-center space-y-2">
-                    <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto">
+                  <div className="bg-amber-50/50 backdrop-blur-xs border border-amber-200/60 rounded-2xl p-5 text-center space-y-2">
+                    <div className="w-10 h-10 bg-amber-100/80 text-amber-600 rounded-2xl flex items-center justify-center mx-auto shadow-2xs">
                       <Trophy className="w-5 h-5 text-amber-500" />
                     </div>
                     <p className="text-xs font-bold text-slate-600 leading-relaxed">
@@ -667,23 +673,23 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                       return (
                         <div
                           key={item.studentId || `rank-${idx}`}
-                          className={`p-3 rounded-2xl flex items-center justify-between gap-3 transition-all border ${
+                          className={`p-3 rounded-2xl flex items-center justify-between gap-3 transition-all border backdrop-blur-md hover:scale-[1.02] ${
                             item.isCurrentStudent
-                              ? "bg-amber-100/90 border-amber-400 shadow-xs ring-2 ring-amber-300/60"
+                              ? "bg-amber-100/90 border-amber-400 shadow-md shadow-amber-300/30 ring-2 ring-amber-300/80"
                               : isTop1
-                              ? "bg-gradient-to-r from-amber-100/80 to-yellow-50/80 border-amber-300/80"
+                              ? "bg-gradient-to-r from-amber-100/90 to-yellow-50/90 border-amber-300 shadow-xs"
                               : isTop2
                               ? "bg-slate-100/80 border-slate-200/80"
                               : isTop3
                               ? "bg-orange-50/80 border-orange-200/80"
-                              : "bg-white/90 border-slate-100"
+                              : "bg-white/80 border-white/60"
                           }`}
                         >
                           <div className="flex items-center gap-3 overflow-hidden">
                             <div
                               className={`w-8 h-8 rounded-xl font-black text-xs flex items-center justify-center shrink-0 shadow-xs ${
                                 isTop1
-                                  ? "bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 border border-amber-300"
+                                  ? "bg-gradient-to-tr from-amber-500 to-yellow-400 text-slate-950 border border-amber-300 shadow-sm"
                                   : isTop2
                                   ? "bg-gradient-to-tr from-slate-300 to-slate-200 text-slate-800 border border-slate-300"
                                   : isTop3
@@ -713,7 +719,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                           </div>
 
                           <div className="text-right shrink-0">
-                            <span className="font-black text-xs sm:text-sm text-amber-800 bg-amber-100/90 border border-amber-200/80 px-2.5 py-1 rounded-xl block shadow-2xs">
+                            <span className="font-black text-xs sm:text-sm text-amber-900 bg-amber-100/90 border border-amber-200/80 px-2.5 py-1 rounded-xl block shadow-2xs backdrop-blur-xs">
                               {item.avgScore} <span className="text-[10px] font-bold">điểm</span>
                             </span>
                           </div>
@@ -725,10 +731,10 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
               </div>
 
               {/* HISTORY CARD */}
-              <div className="bg-white border border-slate-100 rounded-[32px] p-6 shadow-sm space-y-6">
-              <div className="border-b border-slate-50 pb-4">
+              <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-[32px] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] space-y-6">
+              <div className="border-b border-indigo-100/60 pb-4">
                 <h2 className="font-black text-slate-900 text-sm md:text-base flex items-center gap-2">
-                  <span className="bg-emerald-100 p-1.5 rounded-xl text-emerald-600 block shadow-xs animate-pulse">
+                  <span className="bg-emerald-100/80 p-1.5 rounded-xl text-emerald-700 block shadow-xs animate-pulse border border-emerald-200/60">
                     <Award className="w-4 h-4 shrink-0" />
                   </span>
                   Lịch sử & Báo cáo điểm số
@@ -736,7 +742,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
               </div>
 
               {completedAssignments.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 text-xs font-bold leading-relaxed">
+                <div className="text-center py-12 text-slate-500 text-xs font-bold leading-relaxed bg-white/40 rounded-2xl border border-dashed border-indigo-100/80 p-4">
                   Em chưa nộp bài kiểm tra nào. Hãy hoàn thành bài tập đầu tiên để xem báo cáo điểm số em nhé!
                 </div>
               ) : (
@@ -753,19 +759,19 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                     return (
                       <div
                         key={subId || `sub-item-${idx}`}
-                        className="border border-slate-100 p-4 rounded-[20px] space-y-4 hover:bg-slate-50/50 transition-colors bg-white shadow-xs"
+                        className="border border-white/60 p-4 rounded-[22px] space-y-4 hover:bg-white/80 transition-all bg-white/60 backdrop-blur-md shadow-xs hover:shadow-md hover:scale-[1.01]"
                       >
                         <div className="flex items-start justify-between gap-3 text-xs">
                           <div className="space-y-1 overflow-hidden">
                             <h4 className="font-black text-slate-900 truncate block text-sm">{titleVal}</h4>
-                            <span className="text-[10px] font-bold text-slate-400 block">Nộp bài: {formattedDate}</span>
+                            <span className="text-[10px] font-bold text-slate-500 block">Nộp bài: {formattedDate}</span>
                           </div>
-                          <span className={`font-black text-sm px-3 py-1.5 rounded-xl shrink-0 border ${
+                          <span className={`font-black text-sm px-3 py-1.5 rounded-xl shrink-0 border backdrop-blur-xs shadow-2xs ${
                             isExcellent
-                              ? "text-emerald-700 bg-emerald-50 border-emerald-100"
+                              ? "text-emerald-800 bg-emerald-100/80 border-emerald-300"
                               : isGood
-                              ? "text-indigo-700 bg-indigo-50 border-indigo-100"
-                              : "text-rose-700 bg-rose-50 border-rose-100"
+                              ? "text-indigo-800 bg-indigo-100/80 border-indigo-300"
+                              : "text-rose-800 bg-rose-100/80 border-rose-300"
                           }`}>
                             {scoreVal} điểm
                           </span>
@@ -774,7 +780,7 @@ export default function StudentDashboard({ user, onLogout }: StudentDashboardPro
                         <button
                           id={`btn-view-review-${subId || idx}`}
                           onClick={() => subId && handleViewReview(subId)}
-                          className="w-full text-center border border-indigo-100 bg-indigo-50/50 hover:bg-indigo-600 hover:text-white text-indigo-700 font-black py-3 rounded-2xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
+                          className="w-full text-center border border-indigo-200/80 bg-indigo-50/80 hover:bg-indigo-600 hover:text-white text-indigo-700 font-black py-3 rounded-2xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all hover:scale-105 active:scale-95 shadow-xs hover:shadow-md"
                         >
                           <Eye className="w-4 h-4" />
                           Học từ câu sai & Lời giải

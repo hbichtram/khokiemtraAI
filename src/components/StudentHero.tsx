@@ -29,14 +29,14 @@ export default function StudentHero({
   const getThemeBg = () => {
     switch (themeStyle) {
       case "playful-indigo":
-        return "from-[#312E81] via-[#4338CA] to-[#6366F1]";
+        return "from-violet-600 via-indigo-600 to-blue-600";
       case "sunshine-gold":
-        return "from-[#9A3412] via-[#C2410C] to-[#EA580C]";
+        return "from-amber-500 via-orange-500 to-rose-500";
       case "emerald-fresh":
-        return "from-[#065F46] via-[#047857] to-[#059669]";
+        return "from-teal-500 via-emerald-600 to-cyan-600";
       case "brand-gradient":
       default:
-        return "from-[#2E1065] via-[#3730A3] to-[#4F46E5]";
+        return "from-violet-600 via-indigo-600 to-blue-600";
     }
   };
 
@@ -99,7 +99,7 @@ export default function StudentHero({
   return (
     <div
       id="student-hero-banner"
-      className={`relative w-full rounded-[24px] sm:rounded-[28px] overflow-hidden shadow-lg border border-indigo-200/30 text-white bg-gradient-to-r ${getThemeBg()} transition-all duration-300 select-none min-h-[210px] lg:h-[235px] flex flex-col justify-between`}
+      className={`relative w-full rounded-[28px] sm:rounded-[32px] overflow-hidden shadow-2xl shadow-indigo-500/30 border border-white/25 text-white bg-gradient-to-r ${getThemeBg()} transition-all duration-300 select-none min-h-[210px] lg:h-[235px] flex flex-col justify-between`}
     >
       {/* Decorative ambient background glows */}
       <div className="absolute -top-16 -left-16 w-52 h-52 bg-white/10 rounded-full blur-2xl pointer-events-none" />
